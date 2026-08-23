@@ -3,7 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Map as MlMap, Marker, NavigationControl, LngLatBounds, setWorkerUrl, type GeoJSONSource, type StyleSpecification } from "maplibre-gl";
+import {
+  Map as MlMap,
+  Marker,
+  NavigationControl,
+  LngLatBounds,
+  setWorkerUrl,
+  getVersion,
+  type GeoJSONSource,
+  type StyleSpecification,
+} from "maplibre-gl";
 import type { Trip, TripPhoto } from "@/lib/types";
 
 // MapLibre lazily derives its worker script's URL from import.meta.url of its
@@ -13,8 +22,9 @@ import type { Trip, TripPhoto } from "@/lib/types";
 // fallback page for that, which is the "non-JavaScript MIME type" error) and
 // the worker silently never becomes ready -- the real cause of the map hanging
 // forever, unrelated to vector vs. raster tiles. Point it at the exact same
-// version hosted on a CDN instead, which is a real static file.
-setWorkerUrl("https://cdn.jsdelivr.net/npm/maplibre-gl@6.5.0/dist/maplibre-gl-worker.mjs");
+// version hosted on a CDN instead (built from getVersion() so this can't
+// drift out of sync with whatever maplibre-gl version actually ships).
+setWorkerUrl(`https://cdn.jsdelivr.net/npm/maplibre-gl@${getVersion()}/dist/maplibre-gl-worker.mjs`);
 
 // Raster tiles, not OpenFreeMap's vector style: MapLibre's vector-tile
 // pipeline dispatches parsing to a Web Worker, and in both our own testing
@@ -48,7 +58,17 @@ const SECONDARY_GLOW = "rgba(79, 195, 247, 0.4)";
 
 function fmtTime(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  // Pinned to a fixed timeZone (not the environment's default) so the server
+  // render (Vercel, UTC) and the client hydration render (browser, usually
+  // Asia/Ho_Chi_Minh) produce identical text -- otherwise they disagree and
+  // React throws a hydration mismatch (error #418).
+  return new Date(iso).toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Ho_Chi_Minh",
+  });
 }
 
 function fmtDuration(ms: number): string {
