@@ -296,7 +296,13 @@ export default function Home() {
                   ref={imagesInputRef}
                   type="file"
                   multiple
-                  accept="image/*"
+                  // No `accept` filter on purpose: with accept="image/*" on
+                  // Android, Chrome opens the system Photos picker, which
+                  // strips GPS from EXIF before handing files over (a
+                  // deliberate Android privacy behavior). Without it,
+                  // Android falls back to the Files/document picker, which
+                  // leaves EXIF (including GPS) untouched. We still filter
+                  // to image extensions ourselves in runPipeline.
                   className="hidden"
                   onChange={(e) => e.target.files && handlePlainFilesChange(e.target.files)}
                 />
@@ -328,7 +334,9 @@ export default function Home() {
                   Chọn ảnh
                 </button>
                 <p className="text-[11px] text-white/35 mt-1.5 px-1">
-                  Chọn nhiều ảnh cùng lúc từ máy hoặc Thư viện ảnh trên điện thoại.
+                  Chọn nhiều ảnh cùng lúc từ máy hoặc Thư viện ảnh trên điện thoại. Trên Android, nếu báo 0 ảnh có GPS, thử
+                  chọn qua tab <b>&ldquo;Tệp&rdquo;/&ldquo;Files&rdquo;</b> thay vì Ảnh/Gallery — trình chọn Ảnh của Android tự xoá GPS vì lý do
+                  riêng tư.
                 </p>
 
                 <div className="flex items-center gap-3 my-4 text-[11px] font-medium text-white/30 uppercase tracking-wider">
