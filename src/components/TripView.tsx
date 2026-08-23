@@ -3,8 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Map as MlMap, Marker, NavigationControl, LngLatBounds, type GeoJSONSource, type StyleSpecification } from "maplibre-gl";
+import { Map as MlMap, Marker, NavigationControl, LngLatBounds, setWorkerUrl, type GeoJSONSource, type StyleSpecification } from "maplibre-gl";
 import type { Trip, TripPhoto } from "@/lib/types";
+
+// MapLibre lazily derives its worker script's URL from import.meta.url of its
+// own bundled chunk. Under Next.js/Turbopack that chunk gets inlined into a
+// shared bundle with a URL that has no matching /maplibre-gl-worker.mjs next
+// to it, so the browser's module-worker fetch 404s (Next.js serves its HTML
+// fallback page for that, which is the "non-JavaScript MIME type" error) and
+// the worker silently never becomes ready -- the real cause of the map hanging
+// forever, unrelated to vector vs. raster tiles. Point it at the exact same
+// version hosted on a CDN instead, which is a real static file.
+setWorkerUrl("https://cdn.jsdelivr.net/npm/maplibre-gl@6.5.0/dist/maplibre-gl-worker.mjs");
 
 // Raster tiles, not OpenFreeMap's vector style: MapLibre's vector-tile
 // pipeline dispatches parsing to a Web Worker, and in both our own testing
