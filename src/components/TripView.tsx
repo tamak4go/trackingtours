@@ -79,7 +79,14 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
   const [stopCard, setStopCard] = useState<TripPhoto | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<TripPhoto | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [title, setTitle] = useState(trip.title);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  // MapLibre's sources/layers are only added once the "load" event fires
+  // (see the effect below). On a slow connection that can take a while, and
+  // tapping Play before then used to crash (map.getSource() returns
+  // undefined pre-load) and leave the button stuck showing its loading icon
+  // forever. Gate the button on this instead.
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -153,6 +160,8 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
         );
         map.fitBounds(bounds, { padding: 48, duration: 0 });
       }
+
+      setMapReady(true);
     });
 
     return () => {
@@ -165,7 +174,10 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
   function playAnimation() {
     const map = mapRef.current;
     const coords = trip.routeCoords;
-    if (!map || coords.length < 2 || isPlaying) return;
+    if (!map || !mapReady || coords.length < 2 || isPlaying) return;
+
+    const progressSource = map.getSource("route-progress") as GeoJSONSource | undefined;
+    if (!progressSource) return; // load fired but this source wasn't added yet -- shouldn't happen, but don't crash if it does
 
     stopsRef.current = buildStops(coords, trip.photos);
     setIsPlaying(true);
@@ -176,7 +188,6 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
     if (movingMarkerRef.current) movingMarkerRef.current.remove();
     movingMarkerRef.current = new Marker({ element: buildMotoMarkerEl() }).setLngLat(coords[0]).addTo(map);
 
-    const progressSource = map.getSource("route-progress") as GeoJSONSource;
     progressSource.setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] }, properties: {} });
 
     map.jumpTo({ center: coords[0], zoom: Math.max(map.getZoom(), 12) });
@@ -260,10 +271,32 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
     }
   }
 
+  async function handleRename() {
+    if (!editToken) return;
+    const next = prompt("Đổi tên chuyến đi:", title || "");
+    if (next == null) return; // cancelled
+    const trimmed = next.trim();
+    if (!trimmed || trimmed === title) return;
+    try {
+      const res = await fetch(`/api/trips/${trip.slug}?token=${encodeURIComponent(editToken)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: trimmed }),
+      });
+      if (res.ok) {
+        setTitle(trimmed);
+      } else {
+        alert("Đổi tên thất bại.");
+      }
+    } catch {
+      alert("Đổi tên thất bại.");
+    }
+  }
+
   const avgSpeed = trip.durationMs > 0 ? trip.distanceKm / (trip.durationMs / 3600000) : null;
-  const playLabel = isPlaying ? "Đang phát..." : hasPlayed ? "Phát lại" : "Phát animation";
-  const playIcon = isPlaying ? "hourglass_empty" : hasPlayed ? "replay" : "play_arrow";
-  const canPlay = !isPlaying && trip.routeCoords.length >= 2;
+  const playLabel = !mapReady ? "Đang tải bản đồ..." : isPlaying ? "Đang phát..." : hasPlayed ? "Phát lại" : "Phát animation";
+  const playIcon = !mapReady || isPlaying ? "hourglass_empty" : hasPlayed ? "replay" : "play_arrow";
+  const canPlay = mapReady && !isPlaying && trip.routeCoords.length >= 2;
 
   function renderPhotoItem(p: TripPhoto, i: number) {
     const isActive = lightboxPhoto?.id === p.id || stopCard?.id === p.id;
@@ -373,9 +406,18 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
         </button>
 
         <header className="absolute top-4 left-4 right-4 lg:right-[336px] z-30 glass rounded-full px-4 sm:px-6 py-3 flex items-center justify-between transition-all">
-          <div className="flex items-center gap-2 shrink-0 min-w-0">
+          <div className="flex items-center gap-1.5 shrink-0 min-w-0">
             <span className="material-symbols-outlined text-primary-container text-2xl shrink-0">two_wheeler</span>
-            <h1 className="text-sm sm:text-base font-bold tracking-tight truncate">{trip.title || "Chuyến đi phượt"}</h1>
+            <h1 className="text-sm sm:text-base font-bold tracking-tight truncate">{title || "Chuyến đi phượt"}</h1>
+            {editToken && (
+              <button
+                onClick={handleRename}
+                className="text-on-surface-variant hover:text-primary-container transition-colors shrink-0"
+                title="Đổi tên chuyến đi"
+              >
+                <span className="material-symbols-outlined text-base">edit</span>
+              </button>
+            )}
           </div>
 
           <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
