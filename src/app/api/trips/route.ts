@@ -29,22 +29,38 @@ function extFor(contentType: string): string {
   return "jpg";
 }
 
+function isFiniteLatLng(lat: unknown, lng: unknown): boolean {
+  return typeof lat === "number" && typeof lng === "number" && Number.isFinite(lat) && Number.isFinite(lng);
+}
+
 export async function POST(req: NextRequest) {
   let body: CreateTripBody;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return NextResponse.json({ error: "Không đọc được dữ liệu gửi lên." }, { status: 400 });
   }
 
   if (!Array.isArray(body.photos) || body.photos.length === 0) {
-    return NextResponse.json({ error: "photos must be a non-empty array" }, { status: 400 });
+    return NextResponse.json({ error: "Cần ít nhất 1 ảnh để tạo chuyến đi." }, { status: 400 });
   }
   if (body.photos.length > 300) {
-    return NextResponse.json({ error: "Too many photos in one trip (max 300)" }, { status: 400 });
+    return NextResponse.json({ error: "Một chuyến đi tối đa 300 ảnh." }, { status: 400 });
   }
-  if (!Array.isArray(body.routeCoords) || typeof body.distanceKm !== "number") {
-    return NextResponse.json({ error: "Missing route data" }, { status: 400 });
+  if (
+    !Array.isArray(body.routeCoords) ||
+    body.routeCoords.length < 2 ||
+    !body.routeCoords.every((c) => Array.isArray(c) && isFiniteLatLng(c[1], c[0])) ||
+    !Number.isFinite(body.distanceKm)
+  ) {
+    // Most commonly caused by a photo whose EXIF GPS parsed to NaN (some
+    // cameras write GPS tags as 0/0 degree-minute-second fractions when
+    // there was no fix) leaking through client-side validation -- see
+    // src/lib/process-photos.ts for where that's filtered out.
+    return NextResponse.json({ error: "Dữ liệu vị trí không hợp lệ. Thử lại hoặc bỏ bớt ảnh có GPS đáng ngờ." }, { status: 400 });
+  }
+  if (!body.photos.every((p) => isFiniteLatLng(p.lat, p.lng))) {
+    return NextResponse.json({ error: "Có ảnh chứa toạ độ GPS không hợp lệ." }, { status: 400 });
   }
 
   const admin = supabaseAdmin();
@@ -74,7 +90,7 @@ export async function POST(req: NextRequest) {
 
   if (tripErr || !trip) {
     console.error("create trip failed", tripErr);
-    return NextResponse.json({ error: "Failed to create trip" }, { status: 500 });
+    return NextResponse.json({ error: "Tạo chuyến đi thất bại (lỗi máy chủ)." }, { status: 500 });
   }
 
   const uploads: { photoId: string; path: string; token: string; signedUrl: string }[] = [];
@@ -100,7 +116,7 @@ export async function POST(req: NextRequest) {
     if (signErr || !signed) {
       console.error("signed url failed", signErr);
       await admin.from("trips").delete().eq("id", trip.id); // cleanup partial trip
-      return NextResponse.json({ error: "Failed to prepare photo upload" }, { status: 500 });
+      return NextResponse.json({ error: "Chuẩn bị tải ảnh lên thất bại." }, { status: 500 });
     }
 
     uploads.push({ photoId, path, token: signed.token, signedUrl: signed.signedUrl });
@@ -119,7 +135,7 @@ export async function POST(req: NextRequest) {
   if (photosErr) {
     console.error("insert photos failed", photosErr);
     await admin.from("trips").delete().eq("id", trip.id);
-    return NextResponse.json({ error: "Failed to save photo metadata" }, { status: 500 });
+    return NextResponse.json({ error: "Lưu thông tin ảnh thất bại." }, { status: 500 });
   }
 
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";

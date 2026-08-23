@@ -57,8 +57,8 @@ export default function Home() {
       const p = await parsePhotoExif(f);
       const fb = geoFallback?.get(f.name);
       if (fb) {
-        if (p.lat == null && fb.lat != null) p.lat = fb.lat;
-        if (p.lng == null && fb.lng != null) p.lng = fb.lng;
+        if (p.lat == null && Number.isFinite(fb.lat)) p.lat = fb.lat;
+        if (p.lng == null && Number.isFinite(fb.lng)) p.lng = fb.lng;
         if (p.time == null && fb.time) p.time = fb.time;
       }
       parsed.push(p);
@@ -66,7 +66,8 @@ export default function Home() {
     }
     parsed.sort((a, b) => (a.time?.getTime() ?? 0) - (b.time?.getTime() ?? 0));
     const geo = parsed.filter(
-      (p): p is ParsedPhoto & { lat: number; lng: number; time: Date } => p.lat != null && p.lng != null && p.time != null,
+      (p): p is ParsedPhoto & { lat: number; lng: number; time: Date } =>
+        Number.isFinite(p.lat) && Number.isFinite(p.lng) && p.time != null,
     );
 
     if (geo.length < 2) {

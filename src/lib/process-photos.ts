@@ -18,7 +18,11 @@ export async function parsePhotoExif(file: File): Promise<ParsedPhoto> {
   try {
     const gps = await exifr.gps(file);
     const exif = await exifr.parse(file, ["DateTimeOriginal", "CreateDate"]);
-    if (gps) {
+    // Some cameras write GPS tags even without a fix, as 0/0 degree-minute-
+    // second fractions -- exifr still returns a non-null gps object in that
+    // case, just with NaN lat/lng. Treat that the same as "no GPS" instead
+    // of letting NaN leak into the distance/route math downstream.
+    if (gps && Number.isFinite(gps.latitude) && Number.isFinite(gps.longitude)) {
       lat = gps.latitude;
       lng = gps.longitude;
     }
