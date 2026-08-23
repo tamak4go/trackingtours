@@ -16,12 +16,15 @@ export type OSRMRoute = {
   coords: [number, number][]; // [lng, lat]
 };
 
-// Public OSRM demo server -- fine for prototyping, not for production volume
-// or a paying user base. Swap for a self-hosted OSRM instance or a paid
-// routing API (OpenRouteService, Mapbox Directions) before shipping widely.
+// Defaults to the public OSRM demo server -- fine for prototyping, not for
+// production volume or a paying user base (no SLA, shared rate limits). Set
+// NEXT_PUBLIC_OSRM_BASE_URL to a self-hosted OSRM instance's origin (see
+// docs/self-host-osrm.md) to swap it out with no code changes.
+const OSRM_BASE_URL = process.env.NEXT_PUBLIC_OSRM_BASE_URL || "https://router.project-osrm.org";
+
 export async function fetchRoadRoute(points: LatLng[]): Promise<OSRMRoute> {
   const coords = points.map((p) => `${p.lng},${p.lat}`).join(";");
-  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+  const url = `${OSRM_BASE_URL}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`OSRM request failed: ${res.status}`);
   const data = await res.json();

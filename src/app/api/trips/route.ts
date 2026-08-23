@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { genSlug, genEditToken, hashToken } from "@/lib/token";
+import { reverseGeocodePlaceName } from "@/lib/geocode";
 import type { RouteMode } from "@/lib/types";
 
 type IncomingPhoto = {
@@ -50,12 +51,19 @@ export async function POST(req: NextRequest) {
   const slug = genSlug();
   const editToken = genEditToken();
 
+  let title = body.title?.slice(0, 200) || null;
+  if (!title && body.routeCoords.length) {
+    const [midLng, midLat] = body.routeCoords[Math.floor(body.routeCoords.length / 2)];
+    const placeName = await reverseGeocodePlaceName(midLat, midLng);
+    if (placeName) title = `Chuyến đi ${placeName}`;
+  }
+
   const { data: trip, error: tripErr } = await admin
     .from("trips")
     .insert({
       slug,
       edit_token_hash: hashToken(editToken),
-      title: body.title?.slice(0, 200) ?? null,
+      title,
       distance_km: body.distanceKm,
       duration_ms: Math.round(body.durationMs),
       route_mode: body.routeMode,

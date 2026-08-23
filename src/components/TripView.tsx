@@ -79,6 +79,7 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
   const [stopCard, setStopCard] = useState<TripPhoto | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<TripPhoto | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -264,6 +265,41 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
   const playIcon = isPlaying ? "hourglass_empty" : hasPlayed ? "replay" : "play_arrow";
   const canPlay = !isPlaying && trip.routeCoords.length >= 2;
 
+  function renderPhotoItem(p: TripPhoto, i: number) {
+    const isActive = lightboxPhoto?.id === p.id || stopCard?.id === p.id;
+    return (
+      <div
+        key={p.id}
+        onClick={() => setLightboxPhoto(p)}
+        className={`flex gap-3 group cursor-pointer p-2 rounded-lg transition-colors ${
+          isActive ? "bg-surface-glass border border-primary-container/30" : "hover:bg-surface-glass border border-transparent"
+        }`}
+      >
+        <div className="shrink-0 w-6 flex flex-col items-center">
+          <div
+            className="w-6 h-6 rounded-full bg-gradient-to-br from-primary-container to-gradient-pink text-on-primary-container flex items-center justify-center text-[10px] font-bold"
+            style={isActive ? { boxShadow: "0 0 10px rgba(255,122,69,0.5)" } : undefined}
+          >
+            {i + 1}
+          </div>
+          {i < trip.photos.length - 1 && <div className="w-px flex-1 bg-border-glass mt-1" />}
+        </div>
+        <div className="flex-1 min-w-0 pb-2">
+          <img
+            src={p.url}
+            alt=""
+            className={`w-full h-24 object-cover rounded-lg border transition-colors ${
+              isActive ? "border-primary-container" : "border-border-glass group-hover:border-primary-container/50"
+            }`}
+          />
+          <div className="mt-1.5 flex justify-between items-center">
+            <span className={`text-xs ${isActive ? "text-primary" : "text-on-surface-variant"}`}>{fmtTime(p.takenAt)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-dvh relative overflow-hidden bg-md-background text-on-surface">
       <style>{`
@@ -321,43 +357,20 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
             <h3 className="text-sm font-bold">Hành trình ảnh</h3>
             <span className="text-xs text-on-surface-variant bg-surface-glass px-2 py-1 rounded">{trip.photos.length}</span>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">
-            {trip.photos.map((p, i) => {
-              const isActive = lightboxPhoto?.id === p.id || stopCard?.id === p.id;
-              return (
-                <div
-                  key={p.id}
-                  onClick={() => setLightboxPhoto(p)}
-                  className={`flex gap-3 group cursor-pointer p-2 rounded-lg transition-colors ${
-                    isActive ? "bg-surface-glass border border-primary-container/30" : "hover:bg-surface-glass border border-transparent"
-                  }`}
-                >
-                  <div className="shrink-0 w-6 flex flex-col items-center">
-                    <div
-                      className="w-6 h-6 rounded-full bg-gradient-to-br from-primary-container to-gradient-pink text-on-primary-container flex items-center justify-center text-[10px] font-bold"
-                      style={isActive ? { boxShadow: "0 0 10px rgba(255,122,69,0.5)" } : undefined}
-                    >
-                      {i + 1}
-                    </div>
-                    {i < trip.photos.length - 1 && <div className="w-px flex-1 bg-border-glass mt-1" />}
-                  </div>
-                  <div className="flex-1 min-w-0 pb-2">
-                    <img
-                      src={p.url}
-                      alt=""
-                      className={`w-full h-24 object-cover rounded-lg border transition-colors ${
-                        isActive ? "border-primary-container" : "border-border-glass group-hover:border-primary-container/50"
-                      }`}
-                    />
-                    <div className="mt-1.5 flex justify-between items-center">
-                      <span className={`text-xs ${isActive ? "text-primary" : "text-on-surface-variant"}`}>{fmtTime(p.takenAt)}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">{trip.photos.map(renderPhotoItem)}</div>
         </aside>
+
+        {/* Mobile-only: the sidebar above is hidden below `lg`, so a floating
+            button opens the same photo list as a bottom sheet instead. */}
+        <button
+          onClick={() => setMobileSheetOpen(true)}
+          className="lg:hidden absolute bottom-4 right-4 z-30 glass w-14 h-14 rounded-full flex items-center justify-center shadow-xl shadow-black/40"
+        >
+          <span className="material-symbols-outlined text-primary-container text-2xl">photo_library</span>
+          <span className="absolute -top-1 -right-1 bg-gradient-to-br from-primary-container to-gradient-pink text-on-primary-container text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+            {trip.photos.length}
+          </span>
+        </button>
 
         <header className="absolute top-4 left-4 right-4 lg:right-[336px] z-30 glass rounded-full px-4 sm:px-6 py-3 flex items-center justify-between transition-all">
           <div className="flex items-center gap-2 shrink-0 min-w-0">
@@ -424,6 +437,42 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
           </div>
         </header>
       </main>
+
+      <AnimatePresence>
+        {mobileSheetOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="lg:hidden fixed inset-0 z-40 bg-black/60"
+            onClick={() => setMobileSheetOpen(false)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 0.5 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 100) setMobileSheetOpen(false);
+              }}
+              className="absolute bottom-0 left-0 right-0 max-h-[75vh] glass bg-surface-container-low/95 rounded-t-3xl flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-center pt-3 pb-1 shrink-0 cursor-grab active:cursor-grabbing">
+                <div className="w-10 h-1 rounded-full bg-border-glass" />
+              </div>
+              <div className="px-4 pb-3 border-b border-border-glass flex items-center justify-between shrink-0">
+                <h3 className="text-sm font-bold">Hành trình ảnh</h3>
+                <span className="text-xs text-on-surface-variant bg-surface-glass px-2 py-1 rounded">{trip.photos.length}</span>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">{trip.photos.map(renderPhotoItem)}</div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {lightboxPhoto && (

@@ -1,16 +1,15 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { TripView } from "@/components/TripView";
 import type { Trip, TripPhoto, RouteMode } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function TripPage(props: PageProps<"/t/[slug]">) {
-  const { slug } = await props.params;
-  const searchParams = await props.searchParams;
-  const editParam = searchParams?.edit;
-  const editToken = typeof editParam === "string" ? editParam : null;
-
+// Wrapped in React's cache() so generateMetadata and the page component
+// share one Supabase round trip per request instead of two.
+const getTrip = cache(async (slug: string): Promise<Trip | null> => {
   const admin = supabaseAdmin();
 
   const { data: trip } = await admin
@@ -19,7 +18,7 @@ export default async function TripPage(props: PageProps<"/t/[slug]">) {
     .eq("slug", slug)
     .single();
 
-  if (!trip) notFound();
+  if (!trip) return null;
 
   const { data: photoRows } = await admin
     .from("photos")
@@ -36,7 +35,7 @@ export default async function TripPage(props: PageProps<"/t/[slug]">) {
     sortOrder: p.sort_order,
   }));
 
-  const tripData: Trip = {
+  return {
     slug: trip.slug,
     title: trip.title,
     distanceKm: Number(trip.distance_km ?? 0),
@@ -46,6 +45,43 @@ export default async function TripPage(props: PageProps<"/t/[slug]">) {
     photos,
     createdAt: trip.created_at,
   };
+});
 
-  return <TripView trip={tripData} editToken={editToken} />;
+export async function generateMetadata(props: PageProps<"/t/[slug]">): Promise<Metadata> {
+  const { slug } = await props.params;
+  const trip = await getTrip(slug);
+  if (!trip) return { title: "Không tìm thấy chuyến đi · Tracking Phượt" };
+
+  const title = `${trip.title || "Chuyến đi phượt"} · Tracking Phượt`;
+  const description = `${trip.distanceKm.toFixed(1)} km · ${trip.photos.length} ảnh — xem lộ trình trên bản đồ.`;
+  const image = trip.photos[0]?.url;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      images: image ? [{ url: image, width: 1200, height: 630 }] : undefined,
+    },
+    twitter: {
+      card: image ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: image ? [image] : undefined,
+    },
+  };
+}
+
+export default async function TripPage(props: PageProps<"/t/[slug]">) {
+  const { slug } = await props.params;
+  const searchParams = await props.searchParams;
+  const editParam = searchParams?.edit;
+  const editToken = typeof editParam === "string" ? editParam : null;
+
+  const trip = await getTrip(slug);
+  if (!trip) notFound();
+
+  return <TripView trip={trip} editToken={editToken} />;
 }

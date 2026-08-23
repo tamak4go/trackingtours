@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { FolderUp, FileArchive, Info, Loader2, CheckCircle2, Route, Trash2, ArrowUpRight } from "lucide-react";
+import { Images, FolderUp, FileArchive, Info, Loader2, CheckCircle2, Route, Trash2, ArrowUpRight } from "lucide-react";
 import { parsePhotoExif, compressPhoto, type ParsedPhoto } from "@/lib/process-photos";
 import { extractTakeoutZips, type GeoFallback } from "@/lib/process-takeout";
 import { fetchRoadRoute, haversineKm } from "@/lib/geo";
@@ -33,6 +33,7 @@ export default function Home() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [result, setResult] = useState<CreateTripApiResponse | null>(null);
   const myTrips = useMyTrips();
+  const imagesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
 
@@ -180,7 +181,7 @@ export default function Home() {
     setStage("done");
   }
 
-  function handleFolderChange(fileList: FileList) {
+  function handlePlainFilesChange(fileList: FileList) {
     if (!consent) {
       setErrorMsg("Vui lòng đồng ý ở checkbox bên dưới trước khi chọn ảnh.");
       return;
@@ -220,6 +221,15 @@ export default function Home() {
     }
   }
 
+  function pickImages() {
+    if (!consent) {
+      setErrorMsg("Vui lòng đồng ý ở checkbox bên dưới trước khi chọn ảnh.");
+      return;
+    }
+    setErrorMsg("");
+    imagesInputRef.current?.click();
+  }
+
   function pickFolder() {
     if (!consent) {
       setErrorMsg("Vui lòng đồng ý ở checkbox bên dưới trước khi chọn ảnh.");
@@ -243,6 +253,7 @@ export default function Home() {
     setResult(null);
     setErrorMsg("");
     setWarnings([]);
+    if (imagesInputRef.current) imagesInputRef.current.value = "";
     if (folderInputRef.current) folderInputRef.current.value = "";
     if (zipInputRef.current) zipInputRef.current.value = "";
   }
@@ -281,6 +292,14 @@ export default function Home() {
             {(stage === "idle" || stage === "error") && (
               <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <input
+                  ref={imagesInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => e.target.files && handlePlainFilesChange(e.target.files)}
+                />
+                <input
                   ref={folderInputRef}
                   type="file"
                   // @ts-expect-error -- non-standard attributes, no TS types but supported by Chromium/Firefox
@@ -289,7 +308,7 @@ export default function Home() {
                   multiple
                   accept="image/*"
                   className="hidden"
-                  onChange={(e) => e.target.files && handleFolderChange(e.target.files)}
+                  onChange={(e) => e.target.files && handlePlainFilesChange(e.target.files)}
                 />
                 <input
                   ref={zipInputRef}
@@ -301,12 +320,15 @@ export default function Home() {
                 />
 
                 <button
-                  onClick={pickFolder}
+                  onClick={pickImages}
                   className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold bg-gradient-to-r from-accent to-[#ff5f8f] text-neutral-950 shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:brightness-105 active:scale-[0.99] transition-all"
                 >
-                  <FolderUp size={18} strokeWidth={2.4} />
-                  Chọn thư mục ảnh
+                  <Images size={18} strokeWidth={2.4} />
+                  Chọn ảnh
                 </button>
+                <p className="text-[11px] text-white/35 mt-1.5 px-1">
+                  Chọn nhiều ảnh cùng lúc từ máy hoặc Thư viện ảnh trên điện thoại.
+                </p>
 
                 <div className="flex items-center gap-3 my-4 text-[11px] font-medium text-white/30 uppercase tracking-wider">
                   <div className="flex-1 h-px bg-white/10" />
@@ -314,20 +336,29 @@ export default function Home() {
                   <div className="flex-1 h-px bg-white/10" />
                 </div>
 
-                <button
-                  onClick={pickZip}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold bg-white/[0.05] border border-white/10 hover:bg-white/[0.09] active:scale-[0.99] transition-all"
-                >
-                  <FileArchive size={18} strokeWidth={2.4} className="text-accent-2" />
-                  Import từ Google Takeout (.zip)
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={pickFolder}
+                    className="flex items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-semibold bg-white/[0.05] border border-white/10 hover:bg-white/[0.09] active:scale-[0.99] transition-all"
+                  >
+                    <FolderUp size={16} strokeWidth={2.4} className="text-accent-2" />
+                    Cả thư mục
+                  </button>
+                  <button
+                    onClick={pickZip}
+                    className="flex items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-semibold bg-white/[0.05] border border-white/10 hover:bg-white/[0.09] active:scale-[0.99] transition-all"
+                  >
+                    <FileArchive size={16} strokeWidth={2.4} className="text-accent-2" />
+                    Google Takeout
+                  </button>
+                </div>
                 <p className="text-[11px] text-white/35 mt-2 leading-relaxed px-1">
-                  Xuất ảnh Google Photos tại{" "}
+                  &ldquo;Cả thư mục&rdquo; lấy hết ảnh trong thư mục (kể cả thư mục con) — chỉ dùng được trên máy tính. Google Takeout
+                  (xuất từ{" "}
                   <a href="https://takeout.google.com" target="_blank" rel="noreferrer" className="text-accent-2 hover:underline">
                     takeout.google.com
-                  </a>{" "}
-                  — giữ được GPS kể cả khi ảnh gốc không có EXIF vị trí. Có thể chọn nhiều file zip cùng lúc nếu export bị
-                  chia phần.
+                  </a>
+                  ) giữ được GPS kể cả khi ảnh gốc không có EXIF vị trí.
                 </p>
 
                 <label className="flex items-start gap-2.5 mt-5 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs text-white/50 cursor-pointer">
