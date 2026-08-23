@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tracking Phượt
 
-## Getting Started
+Upload ảnh chuyến đi → tự tính lộ trình từ GPS trong EXIF ảnh → có link chia sẻ công khai cho bạn bè xem lại (map animation + xem từng ảnh).
 
-First, run the development server:
+## Kiến trúc
+
+- **Frontend**: Next.js (App Router) + Tailwind, MapLibre GL JS (vector map, style từ [OpenFreeMap](https://openfreemap.org) — miễn phí, không cần API key) cho animation "bay" theo lộ trình.
+- **Xử lý ảnh**: đọc EXIF (`exifr`) và nén ảnh (`browser-image-compression`) hoàn toàn trên trình duyệt trước khi upload.
+- **Routing**: gọi OSRM demo server công khai để tính quãng đường theo đường thực tế (fallback về đường chim bay nếu lỗi hoặc quá 100 điểm). Chỉ phù hợp prototype — xem ghi chú trong `src/lib/geo.ts`.
+- **Backend**: Supabase (Postgres cho metadata chuyến đi + Storage cho ảnh đã nén). Không có hệ thống tài khoản — quyền sửa/xoá được xác thực bằng một "edit token" ngẫu nhiên cấp lúc tạo chuyến đi.
+
+## Setup
+
+1. Tạo project miễn phí tại [supabase.com](https://supabase.com).
+2. Vào **SQL Editor** trong dashboard, chạy toàn bộ nội dung file [`supabase/schema.sql`](./supabase/schema.sql). File này tạo bảng `trips`/`photos` và storage bucket `trip-photos`.
+3. Copy `.env.local.example` thành `.env.local`, điền 3 giá trị từ **Project Settings > API**:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY` (giữ bí mật, không commit)
+4. Chạy dev server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+5. Mở `http://localhost:3000`, chọn thư mục ảnh có GPS để test.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Giới hạn hiện tại (MVP)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- OSRM demo server công khai không có SLA — nếu deploy thật nên tự host OSRM hoặc dùng dịch vụ trả phí (OpenRouteService, Mapbox Directions).
+- Ảnh HEIC (mặc định trên iPhone) có thể không đọc/nén được tuỳ trình duyệt — nên khuyến khích người dùng chọn "ảnh gốc lớn nhất" dạng JPEG khi export từ iPhone.
+- Không có tài khoản người dùng: ai có link xem là xem được (không kiểm soát quyền riêng tư chi tiết), ai có link "edit" là xoá được.
+- Ảnh giới hạn 300 ảnh/chuyến đi trong API hiện tại (`src/app/api/trips/route.ts`).
