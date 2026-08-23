@@ -37,19 +37,17 @@ setWorkerUrl(`https://cdn.jsdelivr.net/npm/maplibre-gl@${getVersion()}/dist/mapl
 const MAP_STYLE: StyleSpecification = {
   version: 8,
   sources: {
-    "carto-dark": {
+    satellite: {
       type: "raster",
-      tiles: [
-        "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-        "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-      ],
+      // Esri World Imagery -- free, no API key, no rate-limit issues in
+      // practice. Note the {z}/{y}/{x} tile URL order: ArcGIS's convention,
+      // swapped from the {z}/{x}/{y} every other tile provider here uses.
+      tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
       tileSize: 256,
-      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+      attribution: "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
     },
   },
-  layers: [{ id: "carto-dark-layer", type: "raster", source: "carto-dark" }],
+  layers: [{ id: "satellite-layer", type: "raster", source: "satellite" }],
 };
 const ACCENT = "#ff7a45";
 const ACCENT_GLOW = "rgba(255, 122, 69, 0.6)";
