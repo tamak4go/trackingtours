@@ -3,10 +3,34 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Map as MlMap, Marker, NavigationControl, LngLatBounds, type GeoJSONSource } from "maplibre-gl";
+import { Map as MlMap, Marker, NavigationControl, LngLatBounds, type GeoJSONSource, type StyleSpecification } from "maplibre-gl";
 import type { Trip, TripPhoto } from "@/lib/types";
 
-const MAP_STYLE = "https://tiles.openfreemap.org/styles/dark";
+// Raster tiles, not OpenFreeMap's vector style: MapLibre's vector-tile
+// pipeline dispatches parsing to a Web Worker, and in both our own testing
+// and on a real user's device that worker reliably never resolved a single
+// tile (main-thread fetches to the exact same tile URLs succeeded fine, so
+// it isn't the network or a CORS/bundler issue -- something in MapLibre's
+// worker/dispatcher path itself hangs). Raster tiles are plain image
+// requests handled on the main thread with no such dependency, trading the
+// vector style's glow/dash styling for the map actually loading.
+const MAP_STYLE: StyleSpecification = {
+  version: 8,
+  sources: {
+    "carto-dark": {
+      type: "raster",
+      tiles: [
+        "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+      ],
+      tileSize: 256,
+      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+    },
+  },
+  layers: [{ id: "carto-dark-layer", type: "raster", source: "carto-dark" }],
+};
 const ACCENT = "#ff7a45";
 const ACCENT_GLOW = "rgba(255, 122, 69, 0.6)";
 const SECONDARY = "#75d1ff";
@@ -87,6 +111,8 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
   // undefined pre-load) and leave the button stuck showing its loading icon
   // forever. Gate the button on this instead.
   const [mapReady, setMapReady] = useState(false);
+  const [mapSlow, setMapSlow] = useState(false);
+  const [mapKey, setMapKey] = useState(0);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -98,6 +124,11 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
       zoom: 6,
     });
     mapRef.current = map;
+
+    // Slow connections (seen as low as <1 KB/s in the field) can leave the
+    // map's style/tiles loading for a very long time. Surface that instead
+    // of leaving the user staring at a black screen with no explanation.
+    const slowTimer = setTimeout(() => setMapSlow(true), 10000);
 
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
 
@@ -161,15 +192,18 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
         map.fitBounds(bounds, { padding: 48, duration: 0 });
       }
 
+      clearTimeout(slowTimer);
+      setMapSlow(false);
       setMapReady(true);
     });
 
     return () => {
+      clearTimeout(slowTimer);
       map.remove();
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [mapKey]);
 
   function playAnimation() {
     const map = mapRef.current;
@@ -271,6 +305,12 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
     }
   }
 
+  function retryMap() {
+    setMapReady(false);
+    setMapSlow(false);
+    setMapKey((k) => k + 1); // bumps the effect's dep, tearing down and recreating the Map instance
+  }
+
   async function handleRename() {
     if (!editToken) return;
     const next = prompt("Đổi tên chuyến đi:", title || "");
@@ -354,6 +394,23 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
               specificity -- collapsing this div to 0 height. Inline styles always beat
               stylesheet rules, so this is the robust fix regardless of import order. */}
           <div ref={mapContainerRef} style={{ position: "absolute", inset: 0 }} />
+
+          {mapSlow && !mapReady && (
+            <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+              <div className="glass rounded-2xl p-5 max-w-xs text-center pointer-events-auto">
+                <p className="text-sm text-on-surface-variant mb-3">
+                  Bản đồ tải hơi lâu — có thể do mạng yếu. Vẫn có thể đang tải, hoặc thử lại bên dưới.
+                </p>
+                <button
+                  onClick={retryMap}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold glow-button text-neutral-950"
+                >
+                  <span className="material-symbols-outlined text-sm">refresh</span>
+                  Thử tải lại
+                </button>
+              </div>
+            </div>
+          )}
 
           {isPlaying && (
             <div className="absolute top-20 left-4 right-4 h-1 bg-white/15 rounded-full overflow-hidden z-10">
