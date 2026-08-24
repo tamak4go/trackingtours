@@ -30,6 +30,7 @@ type AccountTrip = {
   photoCount: number;
   createdAt: string;
   shareUrl: string;
+  photoUrl: string | null;
 };
 
 function fmtDate(iso: string): string {
@@ -199,6 +200,7 @@ export default function Home() {
     await Promise.all(Array.from({ length: 4 }, worker));
     if (uploadFailures > 0) localWarnings.push(`${uploadFailures} ảnh tải lên thất bại (mạng chậm hoặc mất kết nối).`);
 
+    const firstUpload = created.uploads[0];
     saveMyTrip({
       slug: created.slug,
       shareUrl: created.shareUrl,
@@ -206,6 +208,9 @@ export default function Home() {
       distanceKm,
       photoCount: compressed.length,
       createdAt: new Date().toISOString(),
+      photoUrl: firstUpload
+        ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/trip-photos/${firstUpload.path}`
+        : null,
     });
 
     setStatusMsg(localWarnings.length ? "Tạo xong, nhưng có vài ảnh bị bỏ qua." : "Đã tạo chuyến đi!");
@@ -327,32 +332,51 @@ export default function Home() {
 
   const progressPct = progress.total ? (progress.done / progress.total) * 100 : 0;
 
+  const hasAccountTrips = !!(accountTrips && accountTrips.length > 0);
+  const totalKm = hasAccountTrips ? accountTrips!.reduce((sum, t) => sum + t.distanceKm, 0) : 0;
+
   return (
-    <main className="flex-1 flex items-center justify-center p-6 relative">
+    <>
       <div className="bg-mesh" />
-      <div className="absolute top-6 right-6 z-10">
-        <AuthButton />
-      </div>
-
-      <div className="w-full max-w-md">
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-9"
-        >
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-accent to-[#ff5f8f] shadow-lg shadow-accent/30 text-2xl mb-4">
-            🏍️
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight">
+      <nav className="sticky top-0 z-30 flex items-center justify-between px-5 sm:px-8 py-3.5 bg-black/20 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🏍️</span>
+          <span className="font-bold tracking-tight text-sm sm:text-base">
             Tracking <span className="text-gradient">Phượt</span>
-          </h1>
-          <p className="text-white/50 text-sm mt-2.5 leading-relaxed max-w-sm mx-auto">
-            Upload ảnh chuyến đi → tự tính lộ trình từ GPS trong ảnh → có link chia sẻ cho bạn bè xem lại.
-          </p>
-        </motion.div>
+          </span>
+        </div>
+        <AuthButton />
+      </nav>
 
-        <motion.div
+      <main className="flex-1 flex flex-col items-center p-6 relative">
+        <div className="w-full max-w-md">
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="text-center mb-9 mt-4"
+          >
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-accent to-[#ff5f8f] shadow-lg shadow-accent/30 text-2xl mb-4">
+              🏍️
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Tracking <span className="text-gradient">Phượt</span>
+            </h1>
+            <p className="text-white/50 text-sm mt-2.5 leading-relaxed max-w-sm mx-auto">
+              Upload ảnh chuyến đi → tự tính lộ trình từ GPS trong ảnh → có link chia sẻ cho bạn bè xem lại.
+            </p>
+            {hasAccountTrips && (
+              <div className="inline-flex items-center gap-1.5 mt-4 text-xs text-white/60 bg-white/[0.05] border border-white/10 px-3 py-1.5 rounded-full">
+                <Route size={13} className="text-accent" />
+                <span>
+                  <b className="text-white/85">{accountTrips!.length}</b> chuyến đi ·{" "}
+                  <b className="text-white/85">{totalKm.toFixed(0)}</b> km
+                </span>
+              </div>
+            )}
+          </motion.div>
+
+          <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
@@ -544,57 +568,97 @@ export default function Home() {
             )}
           </AnimatePresence>
         </motion.div>
-
-        {(stage === "idle" || stage === "error") && (user ? accountTrips && accountTrips.length > 0 : localTrips.length > 0) && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="mt-6">
-            <div className="text-[11px] text-white/35 mb-2 px-1 font-medium uppercase tracking-wider">
-              Chuyến đi của tôi {user ? "(theo tài khoản Google)" : "(lưu trên trình duyệt này)"}
-            </div>
-            <div className="glass rounded-2xl divide-y divide-white/[0.06] overflow-hidden">
-              {user
-                ? accountTrips!.map((t) => (
-                    <div key={t.slug} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors">
-                      <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center shrink-0">
-                        <Route size={14} className="text-accent" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <a href={t.shareUrl} className="text-sm text-white/85 hover:text-accent truncate block font-medium">
-                          {t.title || `${t.distanceKm.toFixed(1)} km · ${t.photoCount} ảnh`}
-                        </a>
-                        <div className="text-[11px] text-white/35">{fmtDate(t.createdAt)}</div>
-                      </div>
-                      <a href={t.shareUrl} className="text-[11px] text-accent-2 hover:underline shrink-0 font-medium">
-                        Quản lý
-                      </a>
-                    </div>
-                  ))
-                : localTrips.map((t) => (
-                    <div key={t.slug} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors">
-                      <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center shrink-0">
-                        <Route size={14} className="text-accent" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <a href={t.shareUrl} className="text-sm text-white/85 hover:text-accent truncate block font-medium">
-                          {t.distanceKm.toFixed(1)} km · {t.photoCount} ảnh
-                        </a>
-                        <div className="text-[11px] text-white/35">{fmtDate(t.createdAt)}</div>
-                      </div>
-                      <a href={t.editUrl} className="text-[11px] text-accent-2 hover:underline shrink-0 font-medium">
-                        Quản lý
-                      </a>
-                      <button
-                        onClick={() => removeMyTrip(t.slug)}
-                        className="text-white/25 hover:text-red-400 shrink-0 transition-colors"
-                        title="Bỏ khỏi danh sách này (không xoá chuyến đi)"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-            </div>
-          </motion.div>
-        )}
       </div>
-    </main>
+
+      {(stage === "idle" || stage === "error") && (user ? hasAccountTrips : localTrips.length > 0) && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="w-full max-w-5xl mt-10"
+        >
+          <div className="text-[11px] text-white/35 mb-3 px-1 font-medium uppercase tracking-wider">
+            Chuyến đi của tôi {user ? "(theo tài khoản Google)" : "(lưu trên trình duyệt này)"}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {user
+              ? accountTrips!.map((t) => (
+                  <a
+                    key={t.slug}
+                    href={t.shareUrl}
+                    className="group glass rounded-2xl overflow-hidden flex flex-col hover:border-accent/40 border border-transparent transition-colors"
+                  >
+                    <TripThumb photoUrl={t.photoUrl} />
+                    <div className="p-3.5 flex flex-col gap-2">
+                      <span className="text-sm font-semibold text-white/90 truncate">
+                        {t.title || `${t.distanceKm.toFixed(1)} km · ${t.photoCount} ảnh`}
+                      </span>
+                      <div className="flex items-center justify-between text-[11px] text-white/40 pt-2 border-t border-white/10">
+                        <span>{fmtDate(t.createdAt)}</span>
+                        <span className="flex items-center gap-1">
+                          <Route size={12} />
+                          {t.distanceKm.toFixed(1)} km
+                        </span>
+                      </div>
+                    </div>
+                  </a>
+                ))
+              : localTrips.map((t) => (
+                  <a
+                    key={t.slug}
+                    href={t.editUrl}
+                    className="group relative glass rounded-2xl overflow-hidden flex flex-col hover:border-accent/40 border border-transparent transition-colors"
+                  >
+                    <TripThumb photoUrl={t.photoUrl} />
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        removeMyTrip(t.slug);
+                      }}
+                      title="Bỏ khỏi danh sách này (không xoá chuyến đi)"
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/60 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-black/70 transition-all"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                    <div className="p-3.5 flex flex-col gap-2">
+                      <span className="text-sm font-semibold text-white/90 truncate">
+                        {t.distanceKm.toFixed(1)} km · {t.photoCount} ảnh
+                      </span>
+                      <div className="flex items-center justify-between text-[11px] text-white/40 pt-2 border-t border-white/10">
+                        <span>{fmtDate(t.createdAt)}</span>
+                        <span className="flex items-center gap-1">
+                          <Route size={12} />
+                          {t.distanceKm.toFixed(1)} km
+                        </span>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+          </div>
+        </motion.div>
+      )}
+      </main>
+    </>
+  );
+}
+
+// Card thumbnail for a "Chuyến đi của tôi" entry -- a real photo when one's
+// known, a plain route icon placeholder when it isn't (e.g. an upload where
+// every photo failed to compress and fall back, leaving no known public URL).
+function TripThumb({ photoUrl }: { photoUrl: string | null }) {
+  return (
+    <div className="h-32 bg-white/[0.04] relative overflow-hidden shrink-0">
+      {photoUrl ? (
+        <img
+          src={photoUrl}
+          alt=""
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <Route size={26} className="text-white/15" />
+        </div>
+      )}
+    </div>
   );
 }

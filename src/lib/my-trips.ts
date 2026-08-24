@@ -7,6 +7,7 @@ export type SavedTrip = {
   distanceKm: number;
   photoCount: number;
   createdAt: string;
+  photoUrl: string | null;
 };
 
 const KEY = "tp_my_trips";

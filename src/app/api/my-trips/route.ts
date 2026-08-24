@@ -18,7 +18,7 @@ export async function GET() {
   const admin = supabaseAdmin();
   const { data: trips, error } = await admin
     .from("trips")
-    .select("slug, title, distance_km, created_at, photos(count)")
+    .select("id, slug, title, distance_km, created_at, photos(count)")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -26,6 +26,19 @@ export async function GET() {
     console.error("list my trips failed", error);
     return NextResponse.json({ error: "Không tải được danh sách chuyến đi." }, { status: 500 });
   }
+
+  // Card thumbnails: the first photo of each trip (sort_order 0, set when
+  // photos are inserted at creation time -- see POST /api/trips). A second
+  // round trip instead of embedding this in the query above, since
+  // PostgREST doesn't have a clean "one row per group" embed and this
+  // project has already spent enough time fighting its schema cache.
+  const tripIds = (trips ?? []).map((t) => t.id);
+  const { data: covers } = tripIds.length
+    ? await admin.from("photos").select("trip_id, storage_path").in("trip_id", tripIds).eq("sort_order", 0)
+    : { data: [] as { trip_id: string; storage_path: string }[] };
+  const coverUrlByTripId = new Map(
+    (covers ?? []).map((c) => [c.trip_id, admin.storage.from("trip-photos").getPublicUrl(c.storage_path).data.publicUrl]),
+  );
 
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   return NextResponse.json({
@@ -36,6 +49,7 @@ export async function GET() {
       photoCount: t.photos[0]?.count ?? 0,
       createdAt: t.created_at,
       shareUrl: `${site}/t/${t.slug}`,
+      photoUrl: coverUrlByTripId.get(t.id) ?? null,
     })),
   });
 }
