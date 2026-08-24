@@ -3,7 +3,19 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Images, FolderUp, FileArchive, ImageDown, Info, Loader2, CheckCircle2, ArrowUpRight } from "lucide-react";
+import {
+  UploadCloud,
+  CheckCircle2,
+  FolderUp,
+  FileArchive,
+  ImageDown,
+  Info,
+  Loader2,
+  Rocket,
+  ArrowUpRight,
+  MapPinned,
+  Route as RouteIcon,
+} from "lucide-react";
 import { parsePhotoExif, compressPhoto, type ParsedPhoto } from "@/lib/process-photos";
 import { extractTakeoutZips, type GeoFallback } from "@/lib/process-takeout";
 import { fetchRoadRoute, haversineKm } from "@/lib/geo";
@@ -24,9 +36,24 @@ type CreateTripApiResponse = {
   uploads: { photoId: string; path: string; token: string }[];
 };
 
+const STEPS = [
+  { icon: UploadCloud, title: "1. Upload ảnh", body: "Kéo thả hoặc chọn ảnh từ chuyến đi của bạn." },
+  { icon: MapPinned, title: "2. Xử lý GPS", body: "Hệ thống tự động trích xuất vị trí từ metadata ảnh." },
+  { icon: RouteIcon, title: "3. Tạo hành trình", body: "Bản đồ tương tác sẵn sàng để chia sẻ." },
+];
+
 export default function UploadPage() {
   const [stage, setStage] = useState<Stage>("idle");
   const [consent, setConsent] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  // Files picked via the dropzone / "Chọn ảnh" click / "Cả thư mục" sit here
+  // for review (mirrors the mockup's dropzone-then-"Bắt đầu xử lý" flow)
+  // rather than kicking off the pipeline immediately. Google Takeout and
+  // Google Photos import skip this -- both already have their own async
+  // fetch/extract step before a file count is even known, so an extra
+  // staged-review step on top would just be redundant.
+  const [selectedFiles, setSelectedFiles] = useState<File[] | null>(null);
   const [statusMsg, setStatusMsg] = useState("");
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [errorMsg, setErrorMsg] = useState("");
@@ -36,6 +63,18 @@ export default function UploadPage() {
   const imagesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
+
+  // The public-GPS disclosure only matters for a public trip -- a private
+  // one is never exposed to anyone without the edit link/account, so there's
+  // nothing to consent to in that case.
+  function ensureConsent(): boolean {
+    if (isPrivate) return true;
+    if (!consent) {
+      setErrorMsg("Vui lòng đồng ý công khai ảnh & GPS bên dưới, hoặc bật chế độ riêng tư.");
+      return false;
+    }
+    return true;
+  }
 
   async function runPipeline(files: File[], geoFallback?: Map<string, GeoFallback>) {
     setStage("processing");
@@ -126,6 +165,7 @@ export default function UploadPage() {
           durationMs,
           routeMode,
           routeCoords,
+          isPublic: !isPrivate,
           photos: compressed.map((c) => ({
             fileName: c.photo.name,
             lat: c.photo.lat,
@@ -174,6 +214,7 @@ export default function UploadPage() {
       editUrl: created.editUrl,
       distanceKm,
       photoCount: compressed.length,
+      isPublic: !isPrivate,
       createdAt: new Date().toISOString(),
       photoUrl: firstUpload
         ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/trip-photos/${firstUpload.path}`
@@ -186,20 +227,25 @@ export default function UploadPage() {
     setStage("done");
   }
 
-  function handlePlainFilesChange(fileList: FileList) {
-    if (!consent) {
-      setErrorMsg("Vui lòng đồng ý ở checkbox bên dưới trước khi chọn ảnh.");
-      return;
-    }
+  function stageFiles(files: File[]) {
+    if (!ensureConsent()) return;
     setErrorMsg("");
-    runPipeline(Array.from(fileList));
+    setSelectedFiles(files);
+  }
+
+  function startProcessing() {
+    if (!selectedFiles) return;
+    runPipeline(selectedFiles);
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragOver(false);
+    stageFiles(Array.from(e.dataTransfer.files));
   }
 
   async function handleZipChange(fileList: FileList) {
-    if (!consent) {
-      setErrorMsg("Vui lòng đồng ý ở checkbox bên dưới trước khi chọn file.");
-      return;
-    }
+    if (!ensureConsent()) return;
     const zips = Array.from(fileList).filter((f) => f.name.toLowerCase().endsWith(".zip"));
     if (!zips.length) {
       setErrorMsg("Vui lòng chọn (các) file .zip xuất từ Google Takeout.");
@@ -227,37 +273,22 @@ export default function UploadPage() {
   }
 
   function pickImages() {
-    if (!consent) {
-      setErrorMsg("Vui lòng đồng ý ở checkbox bên dưới trước khi chọn ảnh.");
-      return;
-    }
-    setErrorMsg("");
+    if (!ensureConsent()) return;
     imagesInputRef.current?.click();
   }
 
   function pickFolder() {
-    if (!consent) {
-      setErrorMsg("Vui lòng đồng ý ở checkbox bên dưới trước khi chọn ảnh.");
-      return;
-    }
-    setErrorMsg("");
+    if (!ensureConsent()) return;
     folderInputRef.current?.click();
   }
 
   function pickZip() {
-    if (!consent) {
-      setErrorMsg("Vui lòng đồng ý ở checkbox bên dưới trước khi chọn file.");
-      return;
-    }
-    setErrorMsg("");
+    if (!ensureConsent()) return;
     zipInputRef.current?.click();
   }
 
   async function pickGooglePhotos() {
-    if (!consent) {
-      setErrorMsg("Vui lòng đồng ý ở checkbox bên dưới trước khi chọn ảnh.");
-      return;
-    }
+    if (!ensureConsent()) return;
     const token = getGoogleProviderToken();
     if (!user || !token) {
       setErrorMsg("Đăng nhập Google (nút góc trên) trước để nhập ảnh từ Google Photos.");
@@ -292,6 +323,7 @@ export default function UploadPage() {
     setResult(null);
     setErrorMsg("");
     setWarnings([]);
+    setSelectedFiles(null);
     if (imagesInputRef.current) imagesInputRef.current.value = "";
     if (folderInputRef.current) folderInputRef.current.value = "";
     if (zipInputRef.current) zipInputRef.current.value = "";
@@ -304,34 +336,20 @@ export default function UploadPage() {
       <div className="bg-mesh" />
       <TopNav />
 
-      <main className="flex-1 flex items-center justify-center p-6 relative">
-        <div className="w-full max-w-md">
-          <motion.div
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="text-center mb-9"
-          >
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-accent to-[#ff5f8f] shadow-lg shadow-accent/30 text-2xl mb-4">
-              🏍️
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              Tạo chuyến đi <span className="text-gradient">mới</span>
-            </h1>
-            <p className="text-white/50 text-sm mt-2.5 leading-relaxed max-w-sm mx-auto">
-              Upload ảnh chuyến đi → tự tính lộ trình từ GPS trong ảnh → có link chia sẻ cho bạn bè xem lại.
-            </p>
-          </motion.div>
-
+      <main className="flex-1 flex flex-col items-center p-6 relative gap-6">
+        <div className="w-full max-w-2xl">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="glass rounded-3xl p-6 shadow-2xl shadow-black/40"
+            transition={{ duration: 0.5 }}
+            className="glass rounded-3xl p-6 sm:p-10 shadow-2xl shadow-black/40 flex flex-col items-center text-center"
           >
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-accent mb-2">Tạo hành trình của bạn</h1>
+            <p className="text-white/50 text-sm mb-7">Kéo thả ảnh hoặc chọn từ thiết bị để bắt đầu trích xuất GPS.</p>
+
             <AnimatePresence mode="wait">
               {(stage === "idle" || stage === "error") && (
-                <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
                   <input
                     ref={imagesInputRef}
                     type="file"
@@ -344,7 +362,7 @@ export default function UploadPage() {
                     // leaves EXIF (including GPS) untouched. We still filter
                     // to image extensions ourselves in runPipeline.
                     className="hidden"
-                    onChange={(e) => e.target.files && handlePlainFilesChange(e.target.files)}
+                    onChange={(e) => e.target.files && stageFiles(Array.from(e.target.files))}
                   />
                   <input
                     ref={folderInputRef}
@@ -355,7 +373,7 @@ export default function UploadPage() {
                     multiple
                     accept="image/*"
                     className="hidden"
-                    onChange={(e) => e.target.files && handlePlainFilesChange(e.target.files)}
+                    onChange={(e) => e.target.files && stageFiles(Array.from(e.target.files))}
                   />
                   <input
                     ref={zipInputRef}
@@ -366,93 +384,115 @@ export default function UploadPage() {
                     onChange={(e) => e.target.files && handleZipChange(e.target.files)}
                   />
 
-                  <button
+                  <div
                     onClick={pickImages}
-                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold bg-gradient-to-r from-accent to-[#ff5f8f] text-neutral-950 shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:brightness-105 active:scale-[0.99] transition-all"
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      setDragOver(true);
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={handleDrop}
+                    className={`w-full rounded-2xl p-10 flex flex-col items-center justify-center gap-2 cursor-pointer border-2 border-dashed transition-colors ${
+                      dragOver ? "border-accent bg-accent/5" : "border-white/15 hover:border-white/25"
+                    }`}
                   >
-                    <Images size={18} strokeWidth={2.4} />
-                    Chọn ảnh
-                  </button>
-                  <p className="text-[11px] text-white/35 mt-1.5 px-1">
-                    Chọn nhiều ảnh cùng lúc từ máy hoặc Thư viện ảnh trên điện thoại. Trên Android, nếu báo 0 ảnh có GPS, thử
-                    chọn qua tab <b>&ldquo;Tệp&rdquo;/&ldquo;Files&rdquo;</b> thay vì Ảnh/Gallery — trình chọn Ảnh của Android tự xoá GPS vì lý do
-                    riêng tư.
-                  </p>
-
-                  <div className="flex items-center gap-3 my-4 text-[11px] font-medium text-white/30 uppercase tracking-wider">
-                    <div className="flex-1 h-px bg-white/10" />
-                    hoặc
-                    <div className="flex-1 h-px bg-white/10" />
+                    {selectedFiles ? (
+                      <>
+                        <CheckCircle2 size={40} className="text-accent-2 mb-2" />
+                        <span className="text-lg font-semibold">Đã chọn {selectedFiles.length} tệp</span>
+                        <span className="text-xs text-white/40">Nhấp để chọn lại</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud size={40} className="text-white/40 mb-2" />
+                        <span className="text-lg font-semibold">Kéo &amp; thả ảnh vào đây</span>
+                        <span className="text-xs text-white/40">hoặc nhấp để chọn tệp (JPG, PNG, HEIC)</span>
+                      </>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={pickFolder}
-                      className="flex items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-semibold bg-white/[0.05] border border-white/10 hover:bg-white/[0.09] active:scale-[0.99] transition-all"
-                    >
-                      <FolderUp size={16} strokeWidth={2.4} className="text-accent-2" />
-                      Cả thư mục
+                  <div className="flex items-center gap-2 justify-center mt-3">
+                    <button onClick={pickFolder} className="text-[11px] text-white/40 hover:text-accent-2 transition-colors flex items-center gap-1">
+                      <FolderUp size={12} /> Cả thư mục
                     </button>
-                    <button
-                      onClick={pickZip}
-                      className="flex items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-semibold bg-white/[0.05] border border-white/10 hover:bg-white/[0.09] active:scale-[0.99] transition-all"
-                    >
-                      <FileArchive size={16} strokeWidth={2.4} className="text-accent-2" />
-                      Google Takeout
+                    <span className="text-white/20">·</span>
+                    <button onClick={pickZip} className="text-[11px] text-white/40 hover:text-accent-2 transition-colors flex items-center gap-1">
+                      <FileArchive size={12} /> Google Takeout
                     </button>
                   </div>
-                  <p className="text-[11px] text-white/35 mt-2 leading-relaxed px-1">
-                    &ldquo;Cả thư mục&rdquo; lấy hết ảnh trong thư mục (kể cả thư mục con) — chỉ dùng được trên máy tính. Google Takeout
-                    (xuất từ{" "}
-                    <a href="https://takeout.google.com" target="_blank" rel="noreferrer" className="text-accent-2 hover:underline">
-                      takeout.google.com
-                    </a>
-                    ) giữ được GPS kể cả khi ảnh gốc không có EXIF vị trí.
-                  </p>
+
+                  <div className="flex items-center gap-4 w-full justify-center my-6">
+                    <div className="h-px bg-white/10 flex-grow" />
+                    <span className="text-[10px] text-white/30 uppercase tracking-widest">Hoặc</span>
+                    <div className="h-px bg-white/10 flex-grow" />
+                  </div>
 
                   <button
                     onClick={pickGooglePhotos}
                     disabled={!user}
-                    className="w-full flex items-center justify-center gap-1.5 py-3 mt-2 rounded-xl text-sm font-semibold bg-white/[0.05] border border-white/10 hover:bg-white/[0.09] active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-full text-sm font-semibold bg-white/[0.05] border border-white/10 hover:bg-white/[0.09] active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <ImageDown size={16} strokeWidth={2.4} className="text-accent-2" />
-                    Nhập từ Google Photos
+                    <ImageDown size={16} className="text-accent-2" />
+                    Chọn từ Google Photos
                   </button>
-                  <p className="text-[11px] text-white/35 mt-1.5 px-1">
-                    {user
-                      ? "Chỉ ảnh backup ở chất lượng gốc mới còn giữ GPS."
-                      : "Cần đăng nhập Google (nút góc trên) trước."}
+                  <p className="text-[11px] text-white/35 mt-1.5">
+                    {user ? "Chỉ ảnh backup ở chất lượng gốc mới còn giữ GPS." : "Cần đăng nhập Google (nút góc trên) trước."}
                   </p>
 
-                  <label className="flex items-start gap-2.5 mt-5 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs text-white/50 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={consent}
-                      onChange={(e) => setConsent(e.target.checked)}
-                      className="mt-0.5 accent-accent w-3.5 h-3.5 shrink-0"
-                    />
-                    <span>
-                      Tôi hiểu rằng ảnh và vị trí GPS trong chuyến đi này sẽ <b className="text-white/70">công khai</b> với bất
-                      kỳ ai có link chia sẻ (không cần đăng nhập để xem).
-                    </span>
-                  </label>
+                  <div className="w-full flex flex-col gap-3 border-t border-white/10 pt-6 mt-6 text-left">
+                    <label className="flex items-start gap-2.5 text-xs text-white/50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isPrivate}
+                        onChange={(e) => setIsPrivate(e.target.checked)}
+                        className="mt-0.5 accent-accent w-3.5 h-3.5 shrink-0"
+                      />
+                      <span>
+                        Đặt chuyến đi ở chế độ <b className="text-white/70">riêng tư</b>: chỉ mở được bằng link quản lý hoặc tài
+                        khoản của bạn. Đổi lại được bất cứ lúc nào ở trang chuyến đi.
+                      </span>
+                    </label>
+                    {!isPrivate && (
+                      <label className="flex items-start gap-2.5 text-xs text-white/50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={consent}
+                          onChange={(e) => setConsent(e.target.checked)}
+                          className="mt-0.5 accent-accent w-3.5 h-3.5 shrink-0"
+                        />
+                        <span>
+                          Tôi hiểu rằng ảnh và vị trí GPS trong chuyến đi này sẽ <b className="text-white/70">công khai</b> với
+                          bất kỳ ai có link chia sẻ (không cần đăng nhập để xem).
+                        </span>
+                      </label>
+                    )}
 
-                  {errorMsg && (
-                    <motion.p
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex items-start gap-1.5 text-sm text-red-400 mt-4"
+                    {errorMsg && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-start gap-1.5 text-sm text-red-400"
+                      >
+                        <Info size={15} className="shrink-0 mt-0.5" />
+                        {errorMsg}
+                      </motion.p>
+                    )}
+
+                    <button
+                      onClick={startProcessing}
+                      disabled={!selectedFiles}
+                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold uppercase tracking-wide text-sm bg-gradient-to-r from-accent to-[#ff5f8f] text-neutral-950 shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
                     >
-                      <Info size={15} className="shrink-0 mt-0.5" />
-                      {errorMsg}
-                    </motion.p>
-                  )}
-
-                  <p className="flex items-start gap-1.5 text-[11px] text-white/30 mt-4 leading-relaxed">
-                    <Info size={13} className="shrink-0 mt-0.5" />
-                    Chỉ ảnh có GPS mới dùng được. Ảnh HEIC (iPhone) đọc được vị trí bình thường; nếu trình duyệt không nén được
-                    ảnh gốc, app sẽ tự tải lên bản gốc thay vì bỏ qua.
-                  </p>
+                      <Rocket size={18} />
+                      Bắt đầu xử lý
+                    </button>
+                    <p className="flex items-start gap-1.5 text-[11px] text-white/30 leading-relaxed">
+                      <Info size={13} className="shrink-0 mt-0.5" />
+                      Chỉ ảnh có GPS mới dùng được. Ảnh HEIC (iPhone) đọc được vị trí bình thường; nếu trình duyệt không nén được
+                      ảnh gốc, app sẽ tự tải lên bản gốc thay vì bỏ qua.
+                    </p>
+                  </div>
                 </motion.div>
               )}
 
@@ -462,7 +502,7 @@ export default function UploadPage() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="text-center py-6"
+                  className="text-center py-6 w-full"
                 >
                   <Loader2 size={28} className="mx-auto mb-4 text-accent animate-spin" />
                   <div className="text-sm text-white/70 mb-4">{statusMsg}</div>
@@ -484,7 +524,7 @@ export default function UploadPage() {
                   key="done"
                   initial={{ opacity: 0, scale: 0.97 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="space-y-4"
+                  className="space-y-4 w-full text-left"
                 >
                   <div className="flex flex-col items-center text-center gap-2 pb-1">
                     <CheckCircle2 size={32} className="text-emerald-400" />
@@ -526,6 +566,27 @@ export default function UploadPage() {
               )}
             </AnimatePresence>
           </motion.div>
+
+          {(stage === "idle" || stage === "error") && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6"
+            >
+              {STEPS.map((s) => (
+                <div key={s.title} className="glass rounded-2xl p-5 flex flex-col items-center text-center gap-3">
+                  <div className="w-11 h-11 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center text-accent-2">
+                    <s.icon size={20} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-white/85 mb-1">{s.title}</div>
+                    <div className="text-xs text-white/40">{s.body}</div>
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          )}
         </div>
       </main>
     </>
