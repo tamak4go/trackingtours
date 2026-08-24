@@ -92,7 +92,7 @@ export default function Home() {
           >
             Start Ride
           </Link>
-          <button title="Chưa có thông báo" className="text-white/50 hover:text-primary transition-colors">
+          <button title="Chưa có thông báo" className="p-2.5 -m-2.5 text-white/50 hover:text-primary transition-colors">
             <Bell size={20} />
           </button>
           <AuthButton />

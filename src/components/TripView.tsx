@@ -145,6 +145,7 @@ export function TripView({
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [progressPct, setProgressPct] = useState(0);
   const [stopCard, setStopCard] = useState<TripPhoto | null>(null);
   const [stopCardDistanceKm, setStopCardDistanceKm] = useState(0);
@@ -298,7 +299,10 @@ export function TripView({
     map.flyTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 14) });
   }
 
-  function playAnimation() {
+  // onDone fires exactly once, right when the route finishes playing --
+  // used by exportVideo() below to know precisely when to stop recording,
+  // without polling isPlaying/showComplete state from outside.
+  function playAnimation(onDone?: () => void) {
     const map = mapRef.current;
     const coords = trip.routeCoords;
     if (!map || !mapReady || coords.length < 2 || isPlaying) return;
@@ -375,12 +379,77 @@ export function TripView({
       if (state.idx >= coords.length - 1) {
         setIsPlaying(false);
         setShowComplete(true);
+        onDone?.();
         return;
       }
       animFrameRef.current = requestAnimationFrame(step);
     };
 
     animFrameRef.current = requestAnimationFrame(step);
+  }
+
+  // Records the Play animation as a downloadable video. The moving marker,
+  // stop cards, and progress bar are all separate DOM elements layered over
+  // MapLibre's canvas (that's how MapLibre markers and our own React
+  // overlays work) -- so capturing just the map's <canvas> would miss most
+  // of what makes the animation worth sharing. Screen/tab capture
+  // (getDisplayMedia) is the only way to record everything exactly as it's
+  // composited on screen; it always requires one native browser permission
+  // prompt per recording; there's no way to skip that.
+  async function exportVideo() {
+    if (!canPlay || recording) return;
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) {
+      alert("Trình duyệt này không hỗ trợ quay video. Thử trên Chrome/Edge (máy tính hoặc Android).");
+      return;
+    }
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 30 },
+        audio: false,
+        // Chrome-only hint that preselects "this tab" in the picker so
+        // there's less to get wrong -- ignored harmlessly elsewhere.
+        preferCurrentTab: true,
+      } as DisplayMediaStreamOptions);
+    } catch {
+      return; // user cancelled the share picker -- not an error
+    }
+
+    const mimeType =
+      ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    const chunks: BlobPart[] = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+
+    let stopped = false;
+    const stopRecording = () => {
+      if (stopped) return;
+      stopped = true;
+      if (recorder.state !== "inactive") recorder.stop();
+      stream.getTracks().forEach((t) => t.stop());
+    };
+
+    recorder.onstop = () => {
+      setRecording(false);
+      const blob = new Blob(chunks, { type: mimeType || "video/webm" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(title || "chuyen-di").replace(/[\\/:*?"<>|]/g, "").trim() || "chuyen-di"}.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    // Covers the user ending the capture via the browser's own "Stop
+    // sharing" control instead of waiting for playback to finish.
+    stream.getVideoTracks()[0]?.addEventListener("ended", stopRecording);
+
+    recorder.start();
+    setRecording(true);
+    playAnimation(stopRecording);
   }
 
   useEffect(() => {
@@ -649,8 +718,15 @@ export function TripView({
             </div>
           )}
 
+          {recording && (
+            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              Đang quay video...
+            </div>
+          )}
+
           {isPlaying && (
-            <div className="absolute top-20 left-4 right-4 z-10">
+            <div className={`absolute left-4 right-4 z-10 ${recording ? "top-32" : "top-20"}`}>
               <div className="h-1 bg-white/15 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-primary-container to-gradient-pink transition-all duration-150"
@@ -795,9 +871,9 @@ export function TripView({
             )}
           </div>
 
-          <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-2">
             <button
-              onClick={playAnimation}
+              onClick={() => playAnimation()}
               disabled={!canPlay}
               className="glow-button text-neutral-950 text-xs font-bold px-6 py-2 rounded-full flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -806,17 +882,33 @@ export function TripView({
               </span>
               {playLabel}
             </button>
+            <button
+              onClick={exportVideo}
+              disabled={!canPlay || recording}
+              title="Xuất video hành trình"
+              className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-primary-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-lg">{recording ? "fiber_manual_record" : "videocam"}</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-2 overflow-x-auto">
             <button
-              onClick={playAnimation}
+              onClick={() => playAnimation()}
               disabled={!canPlay}
               className="md:hidden glow-button text-neutral-950 w-8 h-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40"
             >
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
                 {playIcon}
               </span>
+            </button>
+            <button
+              onClick={exportVideo}
+              disabled={!canPlay || recording}
+              title="Xuất video hành trình"
+              className="md:hidden w-8 h-8 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant shrink-0 disabled:opacity-40"
+            >
+              <span className="material-symbols-outlined text-lg">{recording ? "fiber_manual_record" : "videocam"}</span>
             </button>
 
             <div className="hidden sm:flex gap-2">

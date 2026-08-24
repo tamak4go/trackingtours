@@ -44,7 +44,11 @@ export function AuthButton() {
           {(user.user_metadata?.full_name || user.email || "?")[0]?.toUpperCase()}
         </div>
       )}
-      <button onClick={signOut} title="Đăng xuất" className="text-white/40 hover:text-red-400 transition-colors">
+      <button
+        onClick={signOut}
+        title="Đăng xuất"
+        className="p-2.5 -m-2.5 text-white/40 hover:text-red-400 transition-colors"
+      >
         <LogOut size={16} />
       </button>
     </div>
