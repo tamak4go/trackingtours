@@ -18,6 +18,7 @@ import {
 import { parsePhotoExif, compressPhoto, type ParsedPhoto } from "@/lib/process-photos";
 import { extractTakeoutZips, type GeoFallback } from "@/lib/process-takeout";
 import { fetchRoadRoute, haversineKm } from "@/lib/geo";
+import { useDefaultPrivate } from "@/lib/preferences";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { saveMyTrip } from "@/lib/my-trips";
 import { CopyField } from "@/components/CopyField";
@@ -42,7 +43,14 @@ const STEPS = [
 export default function UploadPage() {
   const [stage, setStage] = useState<Stage>("idle");
   const [consent, setConsent] = useState(false);
-  const [isPrivate, setIsPrivate] = useState(false);
+  // Seeded from the per-browser Settings preference (useDefaultPrivate),
+  // but once the rider actually touches the checkbox their explicit choice
+  // wins for the rest of this session -- privateOverride tracks that,
+  // staying null until they do.
+  const defaultPrivate = useDefaultPrivate();
+  const [privateOverride, setPrivateOverride] = useState<boolean | null>(null);
+  const isPrivate = privateOverride ?? defaultPrivate;
+  const setIsPrivate = setPrivateOverride;
   const [dragOver, setDragOver] = useState(false);
   // Files picked via the dropzone / "Chọn ảnh" click / "Cả thư mục" sit here
   // for review (mirrors the mockup's dropzone-then-"Bắt đầu xử lý" flow)

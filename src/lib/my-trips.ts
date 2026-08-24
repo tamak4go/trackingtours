@@ -61,3 +61,9 @@ export function removeMyTrip(slug: string) {
   localStorage.setItem(KEY, JSON.stringify(trips));
   emitChange();
 }
+
+export function clearMyTrips() {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(KEY, "[]");
+  emitChange();
+}
