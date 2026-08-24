@@ -7,6 +7,7 @@ export type TripPhoto = {
   lng: number;
   takenAt: string | null;
   sortOrder: number;
+  placeName: string | null;
 };
 
 export type Trip = {

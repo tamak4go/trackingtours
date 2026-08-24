@@ -41,6 +41,7 @@ export type Database = {
           lng: number;
           taken_at: string | null;
           sort_order: number;
+          place_name: string | null;
           created_at: string;
         };
         Insert: {
@@ -51,6 +52,7 @@ export type Database = {
           lng?: number | null;
           taken_at?: string | null;
           sort_order?: number;
+          place_name?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["photos"]["Insert"]>;

@@ -133,6 +133,14 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
   const [deleting, setDeleting] = useState(false);
   const [title, setTitle] = useState(trip.title);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  // Edits to a photo's place name are kept as an id -> text overlay instead
+  // of mutating trip.photos: the map markers below close over the original
+  // trip.photos objects at creation time (they're only built once, in the
+  // "load" effect), so replacing those objects on edit would leave the
+  // markers' click handlers pointing at stale data. Looking the override up
+  // by id at render time stays correct regardless of which object a given
+  // click handler captured.
+  const [placeOverrides, setPlaceOverrides] = useState<Record<string, string | null>>({});
   // MapLibre's sources/layers are only added once the "load" event fires
   // (see the effect below). On a slow connection that can take a while, and
   // tapping Play before then used to crash (map.getSource() returns
@@ -361,6 +369,31 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
     }
   }
 
+  function placeNameOf(p: TripPhoto): string | null {
+    return p.id in placeOverrides ? placeOverrides[p.id] : p.placeName;
+  }
+
+  async function handleEditPlaceName(p: TripPhoto) {
+    if (!editToken) return;
+    const next = prompt("Tên địa điểm:", placeNameOf(p) || "");
+    if (next == null) return; // cancelled
+    const trimmed = next.trim();
+    try {
+      const res = await fetch(`/api/trips/${trip.slug}/photos/${p.id}?token=${encodeURIComponent(editToken)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ placeName: trimmed }),
+      });
+      if (res.ok) {
+        setPlaceOverrides((prev) => ({ ...prev, [p.id]: trimmed || null }));
+      } else {
+        alert("Cập nhật tên địa điểm thất bại.");
+      }
+    } catch {
+      alert("Cập nhật tên địa điểm thất bại.");
+    }
+  }
+
   const avgSpeed = trip.durationMs > 0 ? trip.distanceKm / (trip.durationMs / 3600000) : null;
   const playLabel = !mapReady ? "Đang tải bản đồ..." : isPlaying ? "Đang phát..." : hasPlayed ? "Phát lại" : "Phát animation";
   const playIcon = !mapReady || isPlaying ? "hourglass_empty" : hasPlayed ? "replay" : "play_arrow";
@@ -460,6 +493,12 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
                 onClick={() => setLightboxPhoto(stopCard)}
               >
                 <img src={stopCard.url} alt="" className="w-full h-32 object-cover rounded-lg" />
+                {placeNameOf(stopCard) && (
+                  <div className="flex items-center gap-1 px-0.5 text-sm font-semibold truncate">
+                    <span className="material-symbols-outlined text-primary-container text-sm shrink-0">location_on</span>
+                    <span className="truncate">{placeNameOf(stopCard)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center px-0.5">
                   <span className="text-xs text-on-surface-variant">{fmtTime(stopCard.takenAt)}</span>
                   <span className="material-symbols-outlined text-secondary text-sm">photo_camera</span>
@@ -624,9 +663,24 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
               className="max-w-[90vw] max-h-[75vh] object-contain rounded-lg shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             />
-            <div className="glass px-6 py-3 rounded-full flex items-center gap-2">
-              <span className="material-symbols-outlined text-on-surface-variant text-sm">schedule</span>
-              <span className="text-xs text-on-surface-variant">{fmtTime(lightboxPhoto.takenAt)}</span>
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              {(placeNameOf(lightboxPhoto) || editToken) && (
+                <button
+                  onClick={() => handleEditPlaceName(lightboxPhoto)}
+                  disabled={!editToken}
+                  className="glass px-4 py-3 rounded-full flex items-center gap-2 disabled:cursor-default"
+                >
+                  <span className="material-symbols-outlined text-primary-container text-sm">location_on</span>
+                  <span className="text-xs text-on-surface max-w-[40vw] truncate">
+                    {placeNameOf(lightboxPhoto) || "Thêm tên địa điểm"}
+                  </span>
+                  {editToken && <span className="material-symbols-outlined text-on-surface-variant text-sm">edit</span>}
+                </button>
+              )}
+              <div className="glass px-4 py-3 rounded-full flex items-center gap-2 shrink-0">
+                <span className="material-symbols-outlined text-on-surface-variant text-sm">schedule</span>
+                <span className="text-xs text-on-surface-variant">{fmtTime(lightboxPhoto.takenAt)}</span>
+              </div>
             </div>
           </motion.div>
         )}

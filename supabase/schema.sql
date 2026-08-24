@@ -28,10 +28,16 @@ create table if not exists photos (
   lng double precision,
   taken_at timestamptz,
   sort_order int not null default 0,
+  place_name text, -- owner-editable label shown on the stop card/lightbox; null until they set one
   created_at timestamptz not null default now()
 );
 
 create index if not exists photos_trip_id_idx on photos (trip_id);
+
+-- Added after the table already existed in production -- `create table if
+-- not exists` above is a no-op there, so this re-runnable statement is what
+-- actually adds the column to an already-deployed database.
+alter table photos add column if not exists place_name text;
 
 alter table trips enable row level security;
 alter table photos enable row level security;

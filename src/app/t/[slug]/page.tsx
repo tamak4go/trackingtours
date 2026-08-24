@@ -22,7 +22,7 @@ const getTrip = cache(async (slug: string): Promise<Trip | null> => {
 
   const { data: photoRows } = await admin
     .from("photos")
-    .select("id, storage_path, lat, lng, taken_at, sort_order")
+    .select("id, storage_path, lat, lng, taken_at, sort_order, place_name")
     .eq("trip_id", trip.id)
     .order("sort_order", { ascending: true });
 
@@ -33,6 +33,7 @@ const getTrip = cache(async (slug: string): Promise<Trip | null> => {
     lng: p.lng,
     takenAt: p.taken_at,
     sortOrder: p.sort_order,
+    placeName: p.place_name,
   }));
 
   return {
