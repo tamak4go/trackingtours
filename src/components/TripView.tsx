@@ -53,6 +53,7 @@ const ACCENT = "#ff7a45";
 const ACCENT_GLOW = "rgba(255, 122, 69, 0.6)";
 const SECONDARY = "#75d1ff";
 const SECONDARY_GLOW = "rgba(79, 195, 247, 0.4)";
+const HEAD_TRAIL_POINTS = 40; // how many recent route points form the bright "comet head" behind the moving marker
 
 function fmtTime(iso: string | null): string {
   if (!iso) return "—";
@@ -104,14 +105,15 @@ function buildStops(routeCoords: [number, number][], photos: TripPhoto[]): Stop[
 }
 
 // Builds the moving-marker DOM node imperatively (it's handed to a MapLibre
-// Marker, not rendered by React) -- a badge with the ride icon and a CSS
-// ripple, matching the Stitch "Journey Share View" mockup.
+// Marker, not rendered by React) -- a badge with the ride icon over a soft
+// pulsing glow (see .moto-marker-glow in the component's <style> block),
+// replacing the old hard-edged animate-ping ring with something that reads
+// more like an engine glow than a sonar ping.
 function buildMotoMarkerEl(): HTMLDivElement {
   const el = document.createElement("div");
   el.innerHTML = `
-    <div class="w-10 h-10 bg-surface-container rounded-full flex items-center justify-center border-2 border-primary-container relative" style="box-shadow: 0 0 15px rgba(255,122,69,0.8)">
+    <div class="moto-marker-glow w-10 h-10 bg-surface-container rounded-full flex items-center justify-center border-2 border-primary-container relative">
       <span class="material-symbols-outlined text-primary-container text-xl" style="font-variation-settings:'FILL' 1">two_wheeler</span>
-      <div class="absolute inset-0 rounded-full border border-primary-container animate-ping opacity-75"></div>
     </div>
   `;
   return el.firstElementChild as HTMLDivElement;
@@ -145,6 +147,14 @@ export function TripView({
   const [hasPlayed, setHasPlayed] = useState(false);
   const [progressPct, setProgressPct] = useState(0);
   const [stopCard, setStopCard] = useState<TripPhoto | null>(null);
+  const [stopCardDistanceKm, setStopCardDistanceKm] = useState(0);
+  const [showComplete, setShowComplete] = useState(false);
+  // Mirrors stopsRef below into real state -- the chapter dots on the
+  // progress bar need to read it during render, and reading a ref's
+  // .current during render isn't allowed (it's only safe from event
+  // handlers/effects/animation-loop callbacks, which is what the ref
+  // itself is still used for, in the rAF loop in playAnimation).
+  const [stops, setStops] = useState<Stop[]>([]);
   const [lightboxPhoto, setLightboxPhoto] = useState<TripPhoto | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [title, setTitle] = useState(trip.title);
@@ -228,6 +238,21 @@ export function TripView({
         paint: { "line-color": ACCENT, "line-width": 4 },
       });
 
+      // A short, brighter "hot head" segment layered on top of the traveled
+      // path -- just the last ~40 points, thicker and more opaque -- so the
+      // trail reads as a comet fading into the cooler line behind it rather
+      // than a flat uniform stroke.
+      map.addSource("route-progress-head", {
+        type: "geojson",
+        data: { type: "Feature", geometry: { type: "LineString", coordinates: [] }, properties: {} },
+      });
+      map.addLayer({
+        id: "route-progress-head-line",
+        type: "line",
+        source: "route-progress-head",
+        paint: { "line-color": "#ffd9c2", "line-width": 5, "line-opacity": 0.9 },
+      });
+
       trip.photos.forEach((p) => {
         const el = document.createElement("div");
         el.className = "trip-stop-marker";
@@ -272,18 +297,23 @@ export function TripView({
     if (!map || !mapReady || coords.length < 2 || isPlaying) return;
 
     const progressSource = map.getSource("route-progress") as GeoJSONSource | undefined;
-    if (!progressSource) return; // load fired but this source wasn't added yet -- shouldn't happen, but don't crash if it does
+    const headSource = map.getSource("route-progress-head") as GeoJSONSource | undefined;
+    if (!progressSource || !headSource) return; // load fired but these sources weren't added yet -- shouldn't happen, but don't crash if it does
 
-    stopsRef.current = buildStops(coords, trip.photos);
+    const computedStops = buildStops(coords, trip.photos);
+    stopsRef.current = computedStops;
+    setStops(computedStops);
     setIsPlaying(true);
     setHasPlayed(true);
     setStopCard(null);
+    setShowComplete(false);
     setProgressPct(0);
 
     if (movingMarkerRef.current) movingMarkerRef.current.remove();
     movingMarkerRef.current = new Marker({ element: buildMotoMarkerEl() }).setLngLat(coords[0]).addTo(map);
 
     progressSource.setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] }, properties: {} });
+    headSource.setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] }, properties: {} });
 
     map.jumpTo({ center: coords[0], zoom: Math.max(map.getZoom(), 12) });
 
@@ -313,9 +343,11 @@ export function TripView({
       const frac = state.idx - i0;
       const pos = lerp(coords[i0], coords[i1], frac);
 
-      progressSource.setData({
+      const traveled = [...coords.slice(0, i0 + 1), pos];
+      progressSource.setData({ type: "Feature", geometry: { type: "LineString", coordinates: traveled }, properties: {} });
+      headSource.setData({
         type: "Feature",
-        geometry: { type: "LineString", coordinates: [...coords.slice(0, i0 + 1), pos] },
+        geometry: { type: "LineString", coordinates: traveled.slice(-HEAD_TRAIL_POINTS) },
         properties: {},
       });
       movingMarkerRef.current?.setLngLat(pos);
@@ -325,6 +357,7 @@ export function TripView({
       const stops = stopsRef.current;
       if (state.stopPointer < stops.length && stops[state.stopPointer].coordIdx <= state.idx) {
         setStopCard(stops[state.stopPointer].photo);
+        setStopCardDistanceKm((state.idx / (coords.length - 1)) * trip.distanceKm);
         state.stopPointer++;
         state.mode = "stopped";
         state.resumeAt = ts + 1500;
@@ -334,6 +367,7 @@ export function TripView({
 
       if (state.idx >= coords.length - 1) {
         setIsPlaying(false);
+        setShowComplete(true);
         return;
       }
       animFrameRef.current = requestAnimationFrame(step);
@@ -480,6 +514,19 @@ export function TripView({
           transition: transform .15s ease;
         }
         .trip-stop-marker:hover { transform: scale(1.3); }
+
+        @keyframes moto-glow-pulse {
+          0%, 100% { box-shadow: 0 0 14px 2px rgba(255,122,69,0.75); }
+          50% { box-shadow: 0 0 26px 8px rgba(255,122,69,0.9); }
+        }
+        .moto-marker-glow { animation: moto-glow-pulse 1.4s ease-in-out infinite; }
+
+        @keyframes chapter-dot-pop {
+          0% { transform: scale(0.4); opacity: 0; }
+          60% { transform: scale(1.3); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .chapter-dot-visited { animation: chapter-dot-pop 0.3s ease-out; }
       `}</style>
 
       <main className="flex w-full h-full relative z-10">
@@ -510,11 +557,31 @@ export function TripView({
           )}
 
           {isPlaying && (
-            <div className="absolute top-20 left-4 right-4 h-1 bg-white/15 rounded-full overflow-hidden z-10">
-              <div
-                className="h-full bg-gradient-to-r from-primary-container to-gradient-pink transition-all duration-150"
-                style={{ width: `${progressPct}%` }}
-              />
+            <div className="absolute top-20 left-4 right-4 z-10">
+              <div className="h-1 bg-white/15 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-primary-container to-gradient-pink transition-all duration-150"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              {/* Chapter dots: one per photo, marking where along the route it was
+                  taken -- fills in as the moving marker passes each one, so the
+                  bar reads like a video scrubber with chapters instead of a plain
+                  progress fill. */}
+              {trip.routeCoords.length > 1 &&
+                stops.map((stop) => {
+                  const pct = (stop.coordIdx / (trip.routeCoords.length - 1)) * 100;
+                  const visited = progressPct >= pct;
+                  return (
+                    <div
+                      key={stop.photo.id}
+                      className={`absolute top-1/2 w-2 h-2 rounded-full border transition-colors ${
+                        visited ? "chapter-dot-visited bg-primary-container border-white" : "bg-white/30 border-white/40"
+                      }`}
+                      style={{ left: `${pct}%`, transform: "translate(-50%, -50%)" }}
+                    />
+                  );
+                })}
             </div>
           )}
 
@@ -528,7 +595,20 @@ export function TripView({
                 className="absolute left-4 bottom-4 w-64 glass rounded-xl p-3 flex flex-col gap-2 cursor-pointer z-10 shadow-xl shadow-black/40"
                 onClick={() => setLightboxPhoto(stopCard)}
               >
-                <img src={stopCard.url} alt="" className="w-full h-32 object-cover rounded-lg" />
+                <div className="relative w-full h-32 rounded-lg overflow-hidden">
+                  <motion.img
+                    key={stopCard.id}
+                    src={stopCard.url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    initial={{ scale: 1 }}
+                    animate={{ scale: 1.08 }}
+                    transition={{ duration: 1.5, ease: "linear" }}
+                  />
+                  <span className="absolute bottom-1.5 right-1.5 text-[10px] font-semibold bg-black/60 text-white px-1.5 py-0.5 rounded">
+                    {stopCardDistanceKm.toFixed(1)} km
+                  </span>
+                </div>
                 {placeNameOf(stopCard) && (
                   <div className="flex items-center gap-1 px-0.5 text-sm font-semibold truncate">
                     <span className="material-symbols-outlined text-primary-container text-sm shrink-0">location_on</span>
@@ -540,6 +620,48 @@ export function TripView({
                   <span className="material-symbols-outlined text-secondary text-sm">photo_camera</span>
                 </div>
                 <span className="text-xs text-secondary font-medium">Chạm để xem ảnh lớn</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {showComplete && (
+              <motion.div
+                initial={{ opacity: 0, y: 16, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 16, scale: 0.96 }}
+                transition={{ type: "spring", damping: 22, stiffness: 260 }}
+                className="absolute left-1/2 bottom-6 -translate-x-1/2 w-72 glass rounded-2xl p-4 flex flex-col items-center gap-3 z-10 shadow-xl shadow-black/40 text-center"
+              >
+                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-primary-container to-gradient-pink flex items-center justify-center">
+                  <span className="material-symbols-outlined text-neutral-950 text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    flag_circle
+                  </span>
+                </div>
+                <div>
+                  <div className="text-sm font-bold">Hoàn thành hành trình!</div>
+                  <div className="text-xs text-on-surface-variant mt-0.5">
+                    {trip.distanceKm.toFixed(1)} km · {fmtDuration(trip.durationMs)} · {trip.photos.length} ảnh
+                  </div>
+                </div>
+                <div className="flex gap-2 w-full">
+                  <button
+                    onClick={() => setShowComplete(false)}
+                    className="flex-1 py-2 rounded-full text-xs font-semibold bg-surface-glass border border-border-glass text-on-surface-variant hover:text-on-surface transition-colors"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowComplete(false);
+                      playAnimation();
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-semibold glow-button text-neutral-950"
+                  >
+                    <span className="material-symbols-outlined text-sm">replay</span>
+                    Xem lại
+                  </button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
