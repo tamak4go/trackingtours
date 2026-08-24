@@ -856,8 +856,8 @@ export function TripView({
           </span>
         </button>
 
-        <header className="absolute top-4 left-4 right-4 lg:right-[336px] z-30 glass rounded-full px-4 sm:px-6 py-3 flex items-center justify-between transition-all">
-          <div className="flex items-center gap-1.5 shrink-0 min-w-0">
+        <header className="absolute top-4 left-4 right-4 lg:right-[336px] z-30 glass rounded-full px-4 sm:px-6 py-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 transition-all">
+          <div className="flex items-center gap-1.5 min-w-0">
             <span className="material-symbols-outlined text-primary-container text-2xl shrink-0">two_wheeler</span>
             <h1 className="text-sm sm:text-base font-bold tracking-tight truncate">{title || "Chuyến đi phượt"}</h1>
             {canEdit && (
@@ -871,11 +871,11 @@ export function TripView({
             )}
           </div>
 
-          <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-2">
+          <div className="hidden md:flex items-center justify-center gap-2">
             <button
               onClick={() => playAnimation()}
               disabled={!canPlay}
-              className="glow-button text-neutral-950 text-xs font-bold px-6 py-2 rounded-full flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="glow-button text-neutral-950 text-xs font-bold px-6 py-2 rounded-full flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
             >
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
                 {playIcon}
@@ -886,13 +886,13 @@ export function TripView({
               onClick={exportVideo}
               disabled={!canPlay || recording}
               title="Xuất video hành trình"
-              className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-primary-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-primary-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
             >
               <span className="material-symbols-outlined text-lg">{recording ? "fiber_manual_record" : "videocam"}</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto">
+          <div className="flex items-center justify-end gap-2 overflow-x-auto min-w-0">
             <button
               onClick={() => playAnimation()}
               disabled={!canPlay}
