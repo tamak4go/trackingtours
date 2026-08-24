@@ -16,6 +16,7 @@ export type Database = {
           duration_ms: number | null;
           route_mode: string;
           route_geojson: { type: "LineString"; coordinates: [number, number][] } | null;
+          user_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -27,6 +28,7 @@ export type Database = {
           duration_ms?: number | null;
           route_mode: string;
           route_geojson?: { type: "LineString"; coordinates: [number, number][] } | null;
+          user_id?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["trips"]["Insert"]>;
@@ -56,7 +58,15 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["photos"]["Insert"]>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "photos_trip_id_fkey";
+            columns: ["trip_id"];
+            isOneToOne: false;
+            referencedRelation: "trips";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
   };

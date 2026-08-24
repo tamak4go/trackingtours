@@ -1,12 +1,16 @@
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-// Browser-safe client using the anon key. Has zero table access (see
-// supabase/schema.sql -- RLS denies anon by default); only used here to call
-// storage.uploadToSignedUrl(), which is authorized by the signed token
-// itself, not by RLS.
-let client: ReturnType<typeof createClient> | null = null;
+// Browser-safe client using the anon key. Uses @supabase/ssr instead of the
+// plain supabase-js client so an auth session (Google sign-in) is stored in
+// cookies rather than localStorage -- that's what lets the server (route
+// handlers, the trip page) read the same session via supabase-server.ts.
+// RLS still denies anon table access (see supabase/schema.sql); this client
+// is also used to call storage.uploadToSignedUrl(), authorized by the
+// signed token itself, not by RLS.
+let client: SupabaseClient | null = null;
 
-export function supabaseBrowser() {
+export function supabaseBrowser(): SupabaseClient {
   if (client) return client;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -15,6 +19,6 @@ export function supabaseBrowser() {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY env vars.");
   }
 
-  client = createClient(url, key, { auth: { persistSession: false } });
+  client = createBrowserClient(url, key);
   return client;
 }

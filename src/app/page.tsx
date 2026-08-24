@@ -1,14 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Images, FolderUp, FileArchive, Info, Loader2, CheckCircle2, Route, Trash2, ArrowUpRight } from "lucide-react";
+import { Images, FolderUp, FileArchive, ImageDown, Info, Loader2, CheckCircle2, Route, Trash2, ArrowUpRight } from "lucide-react";
 import { parsePhotoExif, compressPhoto, type ParsedPhoto } from "@/lib/process-photos";
 import { extractTakeoutZips, type GeoFallback } from "@/lib/process-takeout";
 import { fetchRoadRoute, haversineKm } from "@/lib/geo";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useMyTrips, saveMyTrip, removeMyTrip } from "@/lib/my-trips";
+import { useAuthUser } from "@/lib/use-auth-user";
+import { pickFromGooglePhotos, getGoogleProviderToken } from "@/lib/google-photos";
 import { CopyField } from "@/components/CopyField";
+import { AuthButton } from "@/components/AuthButton";
 
 type Stage = "idle" | "processing" | "done" | "error";
 
@@ -18,6 +21,15 @@ type CreateTripApiResponse = {
   shareUrl: string;
   editUrl: string;
   uploads: { photoId: string; path: string; token: string }[];
+};
+
+type AccountTrip = {
+  slug: string;
+  title: string | null;
+  distanceKm: number;
+  photoCount: number;
+  createdAt: string;
+  shareUrl: string;
 };
 
 function fmtDate(iso: string): string {
@@ -32,7 +44,27 @@ export default function Home() {
   const [errorMsg, setErrorMsg] = useState("");
   const [warnings, setWarnings] = useState<string[]>([]);
   const [result, setResult] = useState<CreateTripApiResponse | null>(null);
-  const myTrips = useMyTrips();
+  const localTrips = useMyTrips();
+  const { user } = useAuthUser();
+  // Signed-in users see their trips synced from the database (by account,
+  // works across devices/browsers) instead of the localStorage list -- see
+  // GET /api/my-trips. Signed-out users keep the old localStorage-only list.
+  const [accountTrips, setAccountTrips] = useState<AccountTrip[] | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    fetch("/api/my-trips")
+      .then((res) => (res.ok ? res.json() : { trips: [] }))
+      .then((data) => {
+        if (!cancelled) setAccountTrips(data.trips ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setAccountTrips([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
   const imagesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -249,6 +281,40 @@ export default function Home() {
     zipInputRef.current?.click();
   }
 
+  async function pickGooglePhotos() {
+    if (!consent) {
+      setErrorMsg("Vui lòng đồng ý ở checkbox bên dưới trước khi chọn ảnh.");
+      return;
+    }
+    const token = getGoogleProviderToken();
+    if (!user || !token) {
+      setErrorMsg("Đăng nhập Google (nút góc trên) trước để nhập ảnh từ Google Photos.");
+      return;
+    }
+    setErrorMsg("");
+    setStage("processing");
+    setStatusMsg("Đang mở Google Photos để chọn ảnh...");
+    setProgress({ done: 0, total: 0 });
+    try {
+      const files = await pickFromGooglePhotos(
+        token,
+        (pickerUri) => window.open(pickerUri, "_blank", "noopener,noreferrer"),
+        (done, total) => {
+          setProgress({ done, total });
+          setStatusMsg(`Đang tải ${done}/${total} ảnh từ Google Photos...`);
+        },
+      );
+      if (!files.length) {
+        setStage("idle");
+        return;
+      }
+      await runPipeline(files);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Nhập ảnh từ Google Photos thất bại.");
+      setStage("error");
+    }
+  }
+
   function reset() {
     setStage("idle");
     setResult(null);
@@ -264,6 +330,9 @@ export default function Home() {
   return (
     <main className="flex-1 flex items-center justify-center p-6 relative">
       <div className="bg-mesh" />
+      <div className="absolute top-6 right-6 z-10">
+        <AuthButton />
+      </div>
 
       <div className="w-full max-w-md">
         <motion.div
@@ -370,6 +439,20 @@ export default function Home() {
                   ) giữ được GPS kể cả khi ảnh gốc không có EXIF vị trí.
                 </p>
 
+                <button
+                  onClick={pickGooglePhotos}
+                  disabled={!user}
+                  className="w-full flex items-center justify-center gap-1.5 py-3 mt-2 rounded-xl text-sm font-semibold bg-white/[0.05] border border-white/10 hover:bg-white/[0.09] active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ImageDown size={16} strokeWidth={2.4} className="text-accent-2" />
+                  Nhập từ Google Photos
+                </button>
+                <p className="text-[11px] text-white/35 mt-1.5 px-1">
+                  {user
+                    ? "Chỉ ảnh backup ở chất lượng gốc mới còn giữ GPS."
+                    : "Cần đăng nhập Google (nút góc trên) trước."}
+                </p>
+
                 <label className="flex items-start gap-2.5 mt-5 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs text-white/50 cursor-pointer">
                   <input
                     type="checkbox"
@@ -462,35 +545,52 @@ export default function Home() {
           </AnimatePresence>
         </motion.div>
 
-        {(stage === "idle" || stage === "error") && myTrips.length > 0 && (
+        {(stage === "idle" || stage === "error") && (user ? accountTrips && accountTrips.length > 0 : localTrips.length > 0) && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="mt-6">
             <div className="text-[11px] text-white/35 mb-2 px-1 font-medium uppercase tracking-wider">
-              Chuyến đi của tôi (lưu trên trình duyệt này)
+              Chuyến đi của tôi {user ? "(theo tài khoản Google)" : "(lưu trên trình duyệt này)"}
             </div>
             <div className="glass rounded-2xl divide-y divide-white/[0.06] overflow-hidden">
-              {myTrips.map((t) => (
-                <div key={t.slug} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors">
-                  <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center shrink-0">
-                    <Route size={14} className="text-accent" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <a href={t.shareUrl} className="text-sm text-white/85 hover:text-accent truncate block font-medium">
-                      {t.distanceKm.toFixed(1)} km · {t.photoCount} ảnh
-                    </a>
-                    <div className="text-[11px] text-white/35">{fmtDate(t.createdAt)}</div>
-                  </div>
-                  <a href={t.editUrl} className="text-[11px] text-accent-2 hover:underline shrink-0 font-medium">
-                    Quản lý
-                  </a>
-                  <button
-                    onClick={() => removeMyTrip(t.slug)}
-                    className="text-white/25 hover:text-red-400 shrink-0 transition-colors"
-                    title="Bỏ khỏi danh sách này (không xoá chuyến đi)"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
+              {user
+                ? accountTrips!.map((t) => (
+                    <div key={t.slug} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors">
+                      <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center shrink-0">
+                        <Route size={14} className="text-accent" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <a href={t.shareUrl} className="text-sm text-white/85 hover:text-accent truncate block font-medium">
+                          {t.title || `${t.distanceKm.toFixed(1)} km · ${t.photoCount} ảnh`}
+                        </a>
+                        <div className="text-[11px] text-white/35">{fmtDate(t.createdAt)}</div>
+                      </div>
+                      <a href={t.shareUrl} className="text-[11px] text-accent-2 hover:underline shrink-0 font-medium">
+                        Quản lý
+                      </a>
+                    </div>
+                  ))
+                : localTrips.map((t) => (
+                    <div key={t.slug} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors">
+                      <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center shrink-0">
+                        <Route size={14} className="text-accent" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <a href={t.shareUrl} className="text-sm text-white/85 hover:text-accent truncate block font-medium">
+                          {t.distanceKm.toFixed(1)} km · {t.photoCount} ảnh
+                        </a>
+                        <div className="text-[11px] text-white/35">{fmtDate(t.createdAt)}</div>
+                      </div>
+                      <a href={t.editUrl} className="text-[11px] text-accent-2 hover:underline shrink-0 font-medium">
+                        Quản lý
+                      </a>
+                      <button
+                        onClick={() => removeMyTrip(t.slug)}
+                        className="text-white/25 hover:text-red-400 shrink-0 transition-colors"
+                        title="Bỏ khỏi danh sách này (không xoá chuyến đi)"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
             </div>
           </motion.div>
         )}

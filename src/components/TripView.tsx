@@ -117,7 +117,23 @@ function buildMotoMarkerEl(): HTMLDivElement {
   return el.firstElementChild as HTMLDivElement;
 }
 
-export function TripView({ trip, editToken }: { trip: Trip; editToken: string | null }) {
+export function TripView({
+  trip,
+  editToken,
+  canEdit,
+}: {
+  trip: Trip;
+  // Present only when the share link carried ?edit=... -- still sent as a
+  // query param on mutating requests when set, since that's what an
+  // anonymous (not signed-in) owner authenticates with. A signed-in owner
+  // has neither this nor needs it: the session cookie sent automatically
+  // with same-origin fetch calls is what requireOwnedTrip falls back to.
+  editToken: string | null;
+  // Whether editing controls should show at all -- true if editToken is set
+  // OR the current session belongs to the trip's owner (computed
+  // server-side in t/[slug]/page.tsx, since only it can check that).
+  canEdit: boolean;
+}) {
   const router = useRouter();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
@@ -323,12 +339,20 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
     };
   }, []);
 
+  // A signed-in owner authenticates via the session cookie fetch() already
+  // sends same-origin -- no token query param needed. editToken (from
+  // ?edit=... in the URL) is only appended when present, for the
+  // anonymous-owner case.
+  function tripApiUrl(path: string): string {
+    return editToken ? `${path}?token=${encodeURIComponent(editToken)}` : path;
+  }
+
   async function handleDelete() {
-    if (!editToken) return;
+    if (!canEdit) return;
     if (!confirm("Xoá chuyến đi này? Không thể hoàn tác.")) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/trips/${trip.slug}?token=${encodeURIComponent(editToken)}`, { method: "DELETE" });
+      const res = await fetch(tripApiUrl(`/api/trips/${trip.slug}`), { method: "DELETE" });
       if (res.ok) {
         router.push("/");
       } else {
@@ -348,13 +372,13 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
   }
 
   async function handleRename() {
-    if (!editToken) return;
+    if (!canEdit) return;
     const next = prompt("Đổi tên chuyến đi:", title || "");
     if (next == null) return; // cancelled
     const trimmed = next.trim();
     if (!trimmed || trimmed === title) return;
     try {
-      const res = await fetch(`/api/trips/${trip.slug}?token=${encodeURIComponent(editToken)}`, {
+      const res = await fetch(tripApiUrl(`/api/trips/${trip.slug}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: trimmed }),
@@ -374,12 +398,12 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
   }
 
   async function handleEditPlaceName(p: TripPhoto) {
-    if (!editToken) return;
+    if (!canEdit) return;
     const next = prompt("Tên địa điểm:", placeNameOf(p) || "");
     if (next == null) return; // cancelled
     const trimmed = next.trim();
     try {
-      const res = await fetch(`/api/trips/${trip.slug}/photos/${p.id}?token=${encodeURIComponent(editToken)}`, {
+      const res = await fetch(tripApiUrl(`/api/trips/${trip.slug}/photos/${p.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ placeName: trimmed }),
@@ -533,7 +557,7 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
           <div className="flex items-center gap-1.5 shrink-0 min-w-0">
             <span className="material-symbols-outlined text-primary-container text-2xl shrink-0">two_wheeler</span>
             <h1 className="text-sm sm:text-base font-bold tracking-tight truncate">{title || "Chuyến đi phượt"}</h1>
-            {editToken && (
+            {canEdit && (
               <button
                 onClick={handleRename}
                 className="text-on-surface-variant hover:text-primary-container transition-colors shrink-0"
@@ -590,7 +614,7 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
               </div>
             </div>
 
-            {editToken && (
+            {canEdit && (
               <button
                 onClick={handleDelete}
                 disabled={deleting}
@@ -664,17 +688,17 @@ export function TripView({ trip, editToken }: { trip: Trip; editToken: string | 
               onClick={(e) => e.stopPropagation()}
             />
             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-              {(placeNameOf(lightboxPhoto) || editToken) && (
+              {(placeNameOf(lightboxPhoto) || canEdit) && (
                 <button
                   onClick={() => handleEditPlaceName(lightboxPhoto)}
-                  disabled={!editToken}
+                  disabled={!canEdit}
                   className="glass px-4 py-3 rounded-full flex items-center gap-2 disabled:cursor-default"
                 >
                   <span className="material-symbols-outlined text-primary-container text-sm">location_on</span>
                   <span className="text-xs text-on-surface max-w-[40vw] truncate">
                     {placeNameOf(lightboxPhoto) || "Thêm tên địa điểm"}
                   </span>
-                  {editToken && <span className="material-symbols-outlined text-on-surface-variant text-sm">edit</span>}
+                  {canEdit && <span className="material-symbols-outlined text-on-surface-variant text-sm">edit</span>}
                 </button>
               )}
               <div className="glass px-4 py-3 rounded-full flex items-center gap-2 shrink-0">

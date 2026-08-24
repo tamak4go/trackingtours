@@ -15,10 +15,17 @@ create table if not exists trips (
   duration_ms bigint,
   route_mode text not null default 'straight', -- 'road' | 'straight'
   route_geojson jsonb,                          -- cached OSRM geometry, avoids re-calling routing on every view
+  user_id uuid references auth.users (id) on delete set null, -- null for trips made anonymously (edit_token is still the only proof of ownership for those)
   created_at timestamptz not null default now()
 );
 
 create index if not exists trips_slug_idx on trips (slug);
+create index if not exists trips_user_id_idx on trips (user_id);
+
+-- Added after the table already existed in production -- `create table if
+-- not exists` above is a no-op there, so this re-runnable statement is what
+-- actually adds the column to an already-deployed database.
+alter table trips add column if not exists user_id uuid references auth.users (id) on delete set null;
 
 create table if not exists photos (
   id uuid primary key default gen_random_uuid(),

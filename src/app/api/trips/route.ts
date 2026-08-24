@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { supabaseServer } from "@/lib/supabase-server";
 import { genSlug, genEditToken, hashToken } from "@/lib/token";
 import { reverseGeocodePlaceName } from "@/lib/geocode";
 import type { RouteMode } from "@/lib/types";
@@ -67,6 +68,14 @@ export async function POST(req: NextRequest) {
   const slug = genSlug();
   const editToken = genEditToken();
 
+  // If they're signed in, the trip is also owned by their account (see
+  // src/lib/trip-auth.ts) -- on top of, not instead of, the edit token,
+  // so a share link with ?edit=... still works the same either way.
+  const supabase = await supabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   let title = body.title?.slice(0, 200) || null;
   if (!title && body.routeCoords.length) {
     const [midLng, midLat] = body.routeCoords[Math.floor(body.routeCoords.length / 2)];
@@ -84,6 +93,7 @@ export async function POST(req: NextRequest) {
       duration_ms: Math.round(body.durationMs),
       route_mode: body.routeMode,
       route_geojson: { type: "LineString", coordinates: body.routeCoords },
+      user_id: user?.id ?? null,
     })
     .select("id, slug")
     .single();
