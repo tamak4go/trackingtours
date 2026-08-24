@@ -257,6 +257,15 @@ export function TripView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapKey]);
 
+  // Flies the map to a photo's shot location -- called alongside opening the
+  // lightbox when a photo is tapped in the list, so the map stays in sync
+  // with whichever photo is being viewed.
+  function flyToPhoto(p: TripPhoto) {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    map.flyTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 14) });
+  }
+
   function playAnimation() {
     const map = mapRef.current;
     const coords = trip.routeCoords;
@@ -428,7 +437,10 @@ export function TripView({
     return (
       <div
         key={p.id}
-        onClick={() => setLightboxPhoto(p)}
+        onClick={() => {
+          flyToPhoto(p);
+          setLightboxPhoto(p);
+        }}
         className={`flex gap-3 group cursor-pointer p-2 rounded-lg transition-colors ${
           isActive ? "bg-surface-glass border border-primary-container/30" : "hover:bg-surface-glass border border-transparent"
         }`}
