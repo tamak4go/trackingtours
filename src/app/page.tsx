@@ -22,6 +22,7 @@ import {
 import { useMyTrips, removeMyTrip } from "@/lib/my-trips";
 import { useAuthUser } from "@/lib/use-auth-user";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { AuthButton } from "@/components/AuthButton";
 
 type AccountTrip = {
   slug: string;
@@ -94,15 +95,7 @@ export default function Home() {
           <button title="Chưa có thông báo" className="text-white/50 hover:text-primary transition-colors">
             <Bell size={20} />
           </button>
-          {user?.user_metadata?.avatar_url ? (
-            <img
-              src={user.user_metadata.avatar_url}
-              alt=""
-              className="w-9 h-9 rounded-full border-2 border-primary/60 shadow-[0_0_15px_rgba(255,181,154,0.4)] object-cover"
-            />
-          ) : (
-            <div className="w-9 h-9 rounded-full bg-white/[0.06] border border-white/10" />
-          )}
+          <AuthButton />
         </div>
       </nav>
 
