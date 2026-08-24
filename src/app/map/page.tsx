@@ -122,7 +122,13 @@ export default function MapViewPage() {
           </div>
         ) : (
           <div className="relative w-full flex-1 min-h-[420px] rounded-2xl overflow-hidden glass mb-10">
-            <div ref={mapContainerRef} className="absolute inset-0" />
+            {/* Inline style, not the Tailwind `absolute inset-0` classes: maplibre-gl.css
+                adds its own `.maplibregl-map { position: relative }` rule to this same
+                element (MapLibre reuses the container div), which wins the cascade on
+                equal specificity and collapses this div to 0 height. Inline styles
+                always beat stylesheet rules, so this is the robust fix regardless of
+                import order -- see the same note in TripView.tsx. */}
+            <div ref={mapContainerRef} style={{ position: "absolute", inset: 0 }} />
             {hoveredTrip && (
               <Link
                 href={`/t/${hoveredTrip.slug}`}
