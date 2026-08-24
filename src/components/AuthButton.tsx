@@ -4,11 +4,6 @@ import { LogOut } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useAuthUser } from "@/lib/use-auth-user";
 
-// Also requests Photos Picker access up front, in the same consent screen
-// as sign-in -- avoids a second Google consent prompt later when the user
-// actually tries to import from Google Photos.
-const PHOTOS_PICKER_SCOPE = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly";
-
 export function AuthButton() {
   const { user, loaded } = useAuthUser();
 
@@ -18,7 +13,6 @@ export function AuthButton() {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(window.location.pathname)}`,
-        scopes: PHOTOS_PICKER_SCOPE,
       },
     });
   }

@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   FolderUp,
   FileArchive,
-  ImageDown,
   Info,
   Loader2,
   Rocket,
@@ -21,8 +20,6 @@ import { extractTakeoutZips, type GeoFallback } from "@/lib/process-takeout";
 import { fetchRoadRoute, haversineKm } from "@/lib/geo";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { saveMyTrip } from "@/lib/my-trips";
-import { useAuthUser } from "@/lib/use-auth-user";
-import { pickFromGooglePhotos, getGoogleProviderToken } from "@/lib/google-photos";
 import { CopyField } from "@/components/CopyField";
 import { TopNav } from "@/components/TopNav";
 
@@ -49,17 +46,16 @@ export default function UploadPage() {
   const [dragOver, setDragOver] = useState(false);
   // Files picked via the dropzone / "Chọn ảnh" click / "Cả thư mục" sit here
   // for review (mirrors the mockup's dropzone-then-"Bắt đầu xử lý" flow)
-  // rather than kicking off the pipeline immediately. Google Takeout and
-  // Google Photos import skip this -- both already have their own async
-  // fetch/extract step before a file count is even known, so an extra
-  // staged-review step on top would just be redundant.
+  // rather than kicking off the pipeline immediately. Google Takeout skips
+  // this -- it already has its own async unzip/extract step before a file
+  // count is even known, so an extra staged-review step on top would just
+  // be redundant.
   const [selectedFiles, setSelectedFiles] = useState<File[] | null>(null);
   const [statusMsg, setStatusMsg] = useState("");
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [errorMsg, setErrorMsg] = useState("");
   const [warnings, setWarnings] = useState<string[]>([]);
   const [result, setResult] = useState<CreateTripApiResponse | null>(null);
-  const { user } = useAuthUser();
   const imagesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -287,37 +283,6 @@ export default function UploadPage() {
     zipInputRef.current?.click();
   }
 
-  async function pickGooglePhotos() {
-    if (!ensureConsent()) return;
-    const token = getGoogleProviderToken();
-    if (!user || !token) {
-      setErrorMsg("Đăng nhập Google (nút góc trên) trước để nhập ảnh từ Google Photos.");
-      return;
-    }
-    setErrorMsg("");
-    setStage("processing");
-    setStatusMsg("Đang mở Google Photos để chọn ảnh...");
-    setProgress({ done: 0, total: 0 });
-    try {
-      const files = await pickFromGooglePhotos(
-        token,
-        (pickerUri) => window.open(pickerUri, "_blank", "noopener,noreferrer"),
-        (done, total) => {
-          setProgress({ done, total });
-          setStatusMsg(`Đang tải ${done}/${total} ảnh từ Google Photos...`);
-        },
-      );
-      if (!files.length) {
-        setStage("idle");
-        return;
-      }
-      await runPipeline(files);
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Nhập ảnh từ Google Photos thất bại.");
-      setStage("error");
-    }
-  }
-
   function reset() {
     setStage("idle");
     setResult(null);
@@ -421,24 +386,6 @@ export default function UploadPage() {
                       <FileArchive size={12} /> Google Takeout
                     </button>
                   </div>
-
-                  <div className="flex items-center gap-4 w-full justify-center my-6">
-                    <div className="h-px bg-white/10 flex-grow" />
-                    <span className="text-[10px] text-white/30 uppercase tracking-widest">Hoặc</span>
-                    <div className="h-px bg-white/10 flex-grow" />
-                  </div>
-
-                  <button
-                    onClick={pickGooglePhotos}
-                    disabled={!user}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-full text-sm font-semibold bg-white/[0.05] border border-white/10 hover:bg-white/[0.09] active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <ImageDown size={16} className="text-accent-2" />
-                    Chọn từ Google Photos
-                  </button>
-                  <p className="text-[11px] text-white/35 mt-1.5">
-                    {user ? "Chỉ ảnh backup ở chất lượng gốc mới còn giữ GPS." : "Cần đăng nhập Google (nút góc trên) trước."}
-                  </p>
 
                   <div className="w-full flex flex-col gap-3 border-t border-white/10 pt-6 mt-6 text-left">
                     <label className="flex items-start gap-2.5 text-xs text-white/50 cursor-pointer">
