@@ -17,6 +17,7 @@ export type Database = {
           route_mode: string;
           route_geojson: { type: "LineString"; coordinates: [number, number][] } | null;
           user_id: string | null;
+          is_public: boolean;
           created_at: string;
         };
         Insert: {
@@ -29,6 +30,7 @@ export type Database = {
           route_mode: string;
           route_geojson?: { type: "LineString"; coordinates: [number, number][] } | null;
           user_id?: string | null;
+          is_public?: boolean;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["trips"]["Insert"]>;
@@ -67,6 +69,12 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      rate_limits: {
+        Row: { key: string; count: number; updated_at: string };
+        Insert: { key: string; count?: number; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["rate_limits"]["Insert"]>;
+        Relationships: [];
       };
     };
   };

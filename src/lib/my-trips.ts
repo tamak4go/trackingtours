@@ -6,6 +6,7 @@ export type SavedTrip = {
   editUrl: string;
   distanceKm: number;
   photoCount: number;
+  isPublic: boolean;
   createdAt: string;
   photoUrl: string | null;
 };

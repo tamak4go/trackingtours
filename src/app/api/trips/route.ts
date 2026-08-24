@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { supabaseServer } from "@/lib/supabase-server";
 import { genSlug, genEditToken, hashToken } from "@/lib/token";
 import { reverseGeocodePlaceName } from "@/lib/geocode";
+import { checkRateLimit } from "@/lib/rate-limit";
 import type { RouteMode } from "@/lib/types";
 
 type IncomingPhoto = {
@@ -20,9 +21,14 @@ type CreateTripBody = {
   routeMode: RouteMode;
   routeCoords: [number, number][];
   photos: IncomingPhoto[];
+  isPublic?: boolean;
 };
 
 const BUCKET = "trip-photos";
+// Generous on purpose -- a real trip upload is a single request, this only
+// exists to stop a script from spamming trip creation. Raise it if a real
+// user with many trips a day ever legitimately hits it.
+const CREATE_TRIP_DAILY_LIMIT = 20;
 
 function extFor(contentType: string): string {
   if (contentType === "image/webp") return "webp";
@@ -35,6 +41,14 @@ function isFiniteLatLng(lat: unknown, lng: unknown): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  const { limited } = await checkRateLimit(req, "create_trip", CREATE_TRIP_DAILY_LIMIT);
+  if (limited) {
+    return NextResponse.json(
+      { error: "Đã tạo quá nhiều chuyến đi từ địa chỉ này hôm nay. Thử lại vào ngày mai." },
+      { status: 429 },
+    );
+  }
+
   let body: CreateTripBody;
   try {
     body = await req.json();
@@ -94,6 +108,7 @@ export async function POST(req: NextRequest) {
       route_mode: body.routeMode,
       route_geojson: { type: "LineString", coordinates: body.routeCoords },
       user_id: user?.id ?? null,
+      is_public: body.isPublic !== false,
     })
     .select("id, slug")
     .single();

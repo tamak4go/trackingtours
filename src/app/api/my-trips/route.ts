@@ -18,7 +18,7 @@ export async function GET() {
   const admin = supabaseAdmin();
   const { data: trips, error } = await admin
     .from("trips")
-    .select("id, slug, title, distance_km, created_at, photos(count)")
+    .select("id, slug, title, distance_km, is_public, created_at, photos(count)")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -47,6 +47,7 @@ export async function GET() {
       title: t.title,
       distanceKm: Number(t.distance_km ?? 0),
       photoCount: t.photos[0]?.count ?? 0,
+      isPublic: t.is_public,
       createdAt: t.created_at,
       shareUrl: `${site}/t/${t.slug}`,
       photoUrl: coverUrlByTripId.get(t.id) ?? null,

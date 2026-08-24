@@ -18,6 +18,7 @@ export type Trip = {
   routeMode: RouteMode;
   routeCoords: [number, number][]; // [lng, lat] pairs, GeoJSON order
   photos: TripPhoto[];
+  isPublic: boolean;
   createdAt: string;
 };
 

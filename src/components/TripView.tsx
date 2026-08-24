@@ -167,6 +167,13 @@ export function TripView({
   // by id at render time stays correct regardless of which object a given
   // click handler captured.
   const [placeOverrides, setPlaceOverrides] = useState<Record<string, string | null>>({});
+  // Manual override of display/list order (e.g. a camera with a wrong clock
+  // put a photo out of sequence) -- kept separate from trip.photos so the
+  // map effect below (which builds markers/stops from trip.photos once, on
+  // "load") doesn't need to re-run just because the sidebar order changed.
+  const [photos, setPhotos] = useState<TripPhoto[]>(trip.photos);
+  const [isPublic, setIsPublic] = useState(trip.isPublic);
+  const [recomputingRoute, setRecomputingRoute] = useState(false);
   // MapLibre's sources/layers are only added once the "load" event fires
   // (see the effect below). On a slow connection that can take a while, and
   // tapping Play before then used to crash (map.getSource() returns
@@ -436,6 +443,70 @@ export function TripView({
     }
   }
 
+  async function handleTogglePrivacy() {
+    if (!canEdit) return;
+    const next = !isPublic;
+    try {
+      const res = await fetch(tripApiUrl(`/api/trips/${trip.slug}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublic: next }),
+      });
+      if (res.ok) {
+        setIsPublic(next);
+      } else {
+        alert("Đổi chế độ riêng tư thất bại.");
+      }
+    } catch {
+      alert("Đổi chế độ riêng tư thất bại.");
+    }
+  }
+
+  async function handleRecomputeRoute() {
+    if (!canEdit || recomputingRoute) return;
+    setRecomputingRoute(true);
+    try {
+      const res = await fetch(tripApiUrl(`/api/trips/${trip.slug}/recompute-route`), { method: "POST" });
+      if (res.ok) {
+        // Route mode/coords/distance all live in the `trip` prop from the
+        // server component above -- simplest correct way to reflect the new
+        // road route (colors, dashing, distance stat) is to refetch it.
+        window.location.reload();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Tính lại lộ trình thất bại.");
+        setRecomputingRoute(false);
+      }
+    } catch {
+      alert("Tính lại lộ trình thất bại.");
+      setRecomputingRoute(false);
+    }
+  }
+
+  async function movePhoto(index: number, direction: -1 | 1) {
+    if (!canEdit) return;
+    const target = index + direction;
+    if (target < 0 || target >= photos.length) return;
+    const reordered = [...photos];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    const prev = photos;
+    setPhotos(reordered);
+    try {
+      const res = await fetch(tripApiUrl(`/api/trips/${trip.slug}/reorder`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photoIds: reordered.map((p) => p.id) }),
+      });
+      if (!res.ok) {
+        setPhotos(prev);
+        alert("Sắp xếp lại ảnh thất bại.");
+      }
+    } catch {
+      setPhotos(prev);
+      alert("Sắp xếp lại ảnh thất bại.");
+    }
+  }
+
   function placeNameOf(p: TripPhoto): string | null {
     return p.id in placeOverrides ? placeOverrides[p.id] : p.placeName;
   }
@@ -486,18 +557,40 @@ export function TripView({
           >
             {i + 1}
           </div>
-          {i < trip.photos.length - 1 && <div className="w-px flex-1 bg-border-glass mt-1" />}
+          {i < photos.length - 1 && <div className="w-px flex-1 bg-border-glass mt-1" />}
         </div>
         <div className="flex-1 min-w-0 pb-2">
           <img
             src={p.url}
             alt=""
+            loading="lazy"
+            decoding="async"
             className={`w-full h-24 object-cover rounded-lg border transition-colors ${
               isActive ? "border-primary-container" : "border-border-glass group-hover:border-primary-container/50"
             }`}
           />
           <div className="mt-1.5 flex justify-between items-center">
             <span className={`text-xs ${isActive ? "text-primary" : "text-on-surface-variant"}`}>{fmtTime(p.takenAt)}</span>
+            {canEdit && (
+              <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => movePhoto(i, -1)}
+                  disabled={i === 0}
+                  title="Chuyển lên trước"
+                  className="w-5 h-5 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-glass disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">arrow_upward</span>
+                </button>
+                <button
+                  onClick={() => movePhoto(i, 1)}
+                  disabled={i === photos.length - 1}
+                  title="Chuyển xuống sau"
+                  className="w-5 h-5 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-glass disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">arrow_downward</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -670,9 +763,9 @@ export function TripView({
         <aside className="hidden lg:flex flex-col w-80 h-full glass border-l border-border-glass bg-surface-container-low/80 relative z-20">
           <div className="p-4 border-b border-border-glass flex items-center justify-between shrink-0">
             <h3 className="text-sm font-bold">Hành trình ảnh</h3>
-            <span className="text-xs text-on-surface-variant bg-surface-glass px-2 py-1 rounded">{trip.photos.length}</span>
+            <span className="text-xs text-on-surface-variant bg-surface-glass px-2 py-1 rounded">{photos.length}</span>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">{trip.photos.map(renderPhotoItem)}</div>
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">{photos.map(renderPhotoItem)}</div>
         </aside>
 
         {/* Mobile-only: the sidebar above is hidden below `lg`, so a floating
@@ -731,6 +824,18 @@ export function TripView({
                 <span className="material-symbols-outlined text-sm text-secondary">route</span>
                 <b className="text-on-surface font-semibold">{trip.distanceKm.toFixed(1)} km</b>
                 <span className="opacity-70">{trip.routeMode === "road" ? "đường thực" : "đường thẳng"}</span>
+                {canEdit && trip.routeMode === "straight" && (
+                  <button
+                    onClick={handleRecomputeRoute}
+                    disabled={recomputingRoute}
+                    title="OSRM có thể đã lỗi lúc tạo chuyến -- thử tính lại đường thực"
+                    className="ml-0.5 text-secondary hover:text-on-surface transition-colors disabled:opacity-40"
+                  >
+                    <span className={`material-symbols-outlined text-sm ${recomputingRoute ? "animate-spin" : ""}`}>
+                      {recomputingRoute ? "progress_activity" : "autorenew"}
+                    </span>
+                  </button>
+                )}
               </div>
               <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap">
                 <span className="material-symbols-outlined text-sm text-secondary">schedule</span>
@@ -747,6 +852,17 @@ export function TripView({
                 {trip.photos.length} ảnh
               </div>
             </div>
+
+            {canEdit && (
+              <button
+                onClick={handleTogglePrivacy}
+                title={isPublic ? "Đang công khai -- bấm để đặt riêng tư" : "Đang riêng tư -- bấm để công khai"}
+                className="flex items-center gap-1 text-on-surface-variant hover:text-on-surface transition-colors bg-surface-glass px-3 py-1.5 rounded-full shrink-0 text-xs"
+              >
+                <span className="material-symbols-outlined text-sm">{isPublic ? "lock_open" : "lock"}</span>
+                <span className="hidden md:inline">{isPublic ? "Công khai" : "Riêng tư"}</span>
+              </button>
+            )}
 
             {canEdit && (
               <button
@@ -790,9 +906,9 @@ export function TripView({
               </div>
               <div className="px-4 pb-3 border-b border-border-glass flex items-center justify-between shrink-0">
                 <h3 className="text-sm font-bold">Hành trình ảnh</h3>
-                <span className="text-xs text-on-surface-variant bg-surface-glass px-2 py-1 rounded">{trip.photos.length}</span>
+                <span className="text-xs text-on-surface-variant bg-surface-glass px-2 py-1 rounded">{photos.length}</span>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">{trip.photos.map(renderPhotoItem)}</div>
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">{photos.map(renderPhotoItem)}</div>
             </motion.div>
           </motion.div>
         )}
