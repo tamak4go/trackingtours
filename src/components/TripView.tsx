@@ -36,6 +36,16 @@ function lerp(a: [number, number], b: [number, number], t: number): [number, num
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
 
+// Simplified TikTok glyph (there's no "tiktok" symbol in material-symbols) --
+// same 18px box as the other header icons so it lines up in the toolbar.
+function TikTokIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" className={className}>
+      <path d="M16.6 5.82c-.94-.9-1.46-2.15-1.46-3.5h-3.28v13.66a2.59 2.59 0 0 1-2.59 2.5c-1.43 0-2.6-1.16-2.6-2.59 0-1.54 1.44-2.7 2.96-2.5V10.1c-3.28-.44-6.24 2.1-6.24 5.79A5.79 5.79 0 0 0 9.27 21.7a5.79 5.79 0 0 0 5.79-5.79V9.08a8.32 8.32 0 0 0 4.86 1.56V7.36a4.85 4.85 0 0 1-3.32-1.54Z" />
+    </svg>
+  );
+}
+
 type Stop = { coordIdx: number; photo: TripPhoto };
 
 function buildStops(routeCoords: [number, number][], photos: TripPhoto[]): Stop[] {
@@ -137,6 +147,36 @@ export function TripView({
   const [mapReady, setMapReady] = useState(false);
   const [mapSlow, setMapSlow] = useState(false);
   const [mapKey, setMapKey] = useState(0);
+  // Whether the server has TikTok credentials configured at all -- hides
+  // the button entirely for deployments that never set them up, instead of
+  // showing something that 501s.
+  const [tiktokAvailable, setTiktokAvailable] = useState(false);
+  const [tiktokConnected, setTiktokConnected] = useState(false);
+  const [postingTikTok, setPostingTikTok] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/tiktok/status")
+      .then((r) => r.json())
+      .then((d) => {
+        setTiktokAvailable(Boolean(d.available));
+        setTiktokConnected(Boolean(d.connected));
+      })
+      .catch(() => {});
+
+    // /api/tiktok/callback redirects back here with ?tiktok=connected|error
+    // -- surface that once, then strip the param so a refresh doesn't
+    // re-show the alert.
+    const params = new URLSearchParams(window.location.search);
+    const tiktokResult = params.get("tiktok");
+    if (tiktokResult) {
+      if (tiktokResult === "connected") alert("Đã kết nối TikTok!");
+      else alert("Kết nối TikTok thất bại, thử lại nhé.");
+      params.delete("tiktok");
+      const qs = params.toString();
+      router.replace(qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -256,14 +296,14 @@ export function TripView({
   // onDone fires exactly once, right when the route finishes playing --
   // used by exportVideo() below to know precisely when to stop recording,
   // without polling isPlaying/showComplete state from outside.
-  function playAnimation(onDone?: () => void) {
+  function playAnimation(onDone?: () => void): boolean {
     const map = mapRef.current;
     const coords = trip.routeCoords;
-    if (!map || !mapReady || coords.length < 2 || isPlaying) return;
+    if (!map || !mapReady || coords.length < 2 || isPlaying) return false;
 
     const progressSource = map.getSource("route-progress") as GeoJSONSource | undefined;
     const headSource = map.getSource("route-progress-head") as GeoJSONSource | undefined;
-    if (!progressSource || !headSource) return; // load fired but these sources weren't added yet -- shouldn't happen, but don't crash if it does
+    if (!progressSource || !headSource) return false; // load fired but these sources weren't added yet -- shouldn't happen, but don't crash if it does
 
     const computedStops = buildStops(coords, trip.photos);
     stopsRef.current = computedStops;
@@ -340,21 +380,24 @@ export function TripView({
     };
 
     animFrameRef.current = requestAnimationFrame(step);
+    return true;
   }
 
-  // Records the Play animation as a downloadable video. The moving marker,
-  // stop cards, and progress bar are all separate DOM elements layered over
+  // Records the Play animation as a video Blob. The moving marker, stop
+  // cards, and progress bar are all separate DOM elements layered over
   // MapLibre's canvas (that's how MapLibre markers and our own React
   // overlays work) -- so capturing just the map's <canvas> would miss most
   // of what makes the animation worth sharing. Screen/tab capture
   // (getDisplayMedia) is the only way to record everything exactly as it's
   // composited on screen; it always requires one native browser permission
-  // prompt per recording; there's no way to skip that.
-  async function exportVideo() {
-    if (!canPlay || recording) return;
+  // prompt per recording; there's no way to skip that. Shared by exportVideo
+  // (download/share sheet) and postToTikTok (upload) below so the capture
+  // logic only exists once.
+  async function recordAnimationVideo(): Promise<Blob | null> {
+    if (!canPlay || recording || isPlaying) return null;
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) {
       alert("Trình duyệt này không hỗ trợ quay video. Thử trên Chrome/Edge (máy tính hoặc Android).");
-      return;
+      return null;
     }
 
     let stream: MediaStream;
@@ -367,7 +410,7 @@ export function TripView({
         preferCurrentTab: true,
       } as DisplayMediaStreamOptions);
     } catch {
-      return; // user cancelled the share picker -- not an error
+      return null; // user cancelled the share picker -- not an error
     }
 
     const mimeType =
@@ -386,24 +429,93 @@ export function TripView({
       stream.getTracks().forEach((t) => t.stop());
     };
 
-    recorder.onstop = () => {
-      setRecording(false);
-      const blob = new Blob(chunks, { type: mimeType || "video/webm" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${(title || "chuyen-di").replace(/[\\/:*?"<>|]/g, "").trim() || "chuyen-di"}.webm`;
-      a.click();
-      URL.revokeObjectURL(url);
-    };
+    const blob = await new Promise<Blob | null>((resolve) => {
+      recorder.onstop = () => {
+        setRecording(false);
+        resolve(chunks.length ? new Blob(chunks, { type: mimeType || "video/webm" }) : null);
+      };
+      // Covers the user ending the capture via the browser's own "Stop
+      // sharing" control instead of waiting for playback to finish.
+      stream.getVideoTracks()[0]?.addEventListener("ended", stopRecording);
 
-    // Covers the user ending the capture via the browser's own "Stop
-    // sharing" control instead of waiting for playback to finish.
-    stream.getVideoTracks()[0]?.addEventListener("ended", stopRecording);
+      recorder.start();
+      setRecording(true);
+      if (!playAnimation(stopRecording)) stopRecording();
+    });
+    return blob;
+  }
 
-    recorder.start();
-    setRecording(true);
-    playAnimation(stopRecording);
+  async function exportVideo() {
+    const blob = await recordAnimationVideo();
+    if (!blob) return;
+
+    const filename = `${(title || "chuyen-di").replace(/[\\/:*?"<>|]/g, "").trim() || "chuyen-di"}.webm`;
+    const file = new File([blob], filename, { type: blob.type });
+
+    // On mobile, hand the clip to the OS share sheet so the user can pick
+    // TikTok (or anything else) directly -- no TikTok account/API needed.
+    // Falls back to a plain download wherever Web Share's file support
+    // isn't there (most desktop browsers).
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: title || "Chuyến đi phượt" });
+        return;
+      } catch {
+        return; // user backed out of the share sheet -- not an error, don't also fall through to download
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Connects this browser to TikTok (see /api/tiktok/auth) so postToTikTok
+  // can post without a share-sheet round trip.
+  function connectTikTok() {
+    window.location.href = `/api/tiktok/auth?return_to=${encodeURIComponent(window.location.pathname)}`;
+  }
+
+  async function disconnectTikTok() {
+    await fetch("/api/tiktok/disconnect", { method: "POST" });
+    setTiktokConnected(false);
+  }
+
+  // Records the animation, then uploads it straight to the connected
+  // TikTok account via the Content Posting API (see src/lib/tiktok.ts).
+  // CAVEAT surfaced in the alert below: an unaudited app can only deliver
+  // to the user's TikTok inbox as a draft -- they still open the TikTok app
+  // and tap Đăng themselves. There's no API path around that.
+  async function postToTikTok() {
+    if (postingTikTok) return;
+    const blob = await recordAnimationVideo();
+    if (!blob) return;
+
+    setPostingTikTok(true);
+    try {
+      const res = await fetch(`/api/tiktok/upload?title=${encodeURIComponent(title || "Chuyến đi phượt")}`, {
+        method: "POST",
+        body: blob,
+      });
+      if (res.ok) {
+        alert("Đã gửi video vào TikTok! Mở app TikTok > Hộp thư đến > Bản nháp để hoàn tất đăng.");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          setTiktokConnected(false);
+          alert("Phiên TikTok đã hết hạn, hãy kết nối lại.");
+        } else {
+          alert(err.error || "Đăng lên TikTok thất bại.");
+        }
+      }
+    } catch {
+      alert("Đăng lên TikTok thất bại.");
+    } finally {
+      setPostingTikTok(false);
+    }
   }
 
   useEffect(() => {
@@ -600,7 +712,7 @@ export function TripView({
                   onClick={() => movePhoto(i, -1)}
                   disabled={i === 0}
                   title="Chuyển lên trước"
-                  className="w-5 h-5 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-glass disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+                  className="w-7 h-7 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-glass disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
                 >
                   <span className="material-symbols-outlined text-sm">arrow_upward</span>
                 </button>
@@ -608,7 +720,7 @@ export function TripView({
                   onClick={() => movePhoto(i, 1)}
                   disabled={i === photos.length - 1}
                   title="Chuyển xuống sau"
-                  className="w-5 h-5 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-glass disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+                  className="w-7 h-7 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-glass disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
                 >
                   <span className="material-symbols-outlined text-sm">arrow_downward</span>
                 </button>
@@ -838,12 +950,44 @@ export function TripView({
             </button>
             <button
               onClick={exportVideo}
-              disabled={!canPlay || recording}
+              disabled={!canPlay || recording || isPlaying}
               title="Xuất video hành trình"
               className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-primary-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
             >
               <span className="material-symbols-outlined text-lg">{recording ? "fiber_manual_record" : "videocam"}</span>
             </button>
+            {tiktokAvailable &&
+              (tiktokConnected ? (
+                <>
+                  <button
+                    onClick={postToTikTok}
+                    disabled={!canPlay || recording || isPlaying || postingTikTok}
+                    title="Đăng lên TikTok (vào Bản nháp trong app TikTok)"
+                    className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-[#ff0050] transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                  >
+                    {postingTikTok ? (
+                      <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                    ) : (
+                      <TikTokIcon />
+                    )}
+                  </button>
+                  <button
+                    onClick={disconnectTikTok}
+                    title="Ngắt kết nối TikTok"
+                    className="text-[10px] text-on-surface-variant hover:text-error transition-colors shrink-0"
+                  >
+                    Ngắt
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={connectTikTok}
+                  title="Kết nối TikTok để đăng trực tiếp"
+                  className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-[#ff0050] transition-colors shrink-0"
+                >
+                  <TikTokIcon />
+                </button>
+              ))}
           </div>
 
           <div className="flex items-center justify-end gap-2 overflow-x-auto min-w-0">
@@ -858,12 +1002,47 @@ export function TripView({
             </button>
             <button
               onClick={exportVideo}
-              disabled={!canPlay || recording}
+              disabled={!canPlay || recording || isPlaying}
               title="Xuất video hành trình"
               className="md:hidden w-8 h-8 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant shrink-0 disabled:opacity-40"
             >
               <span className="material-symbols-outlined text-lg">{recording ? "fiber_manual_record" : "videocam"}</span>
             </button>
+            {tiktokAvailable &&
+              (tiktokConnected ? (
+                <button
+                  onClick={postToTikTok}
+                  disabled={!canPlay || recording || isPlaying || postingTikTok}
+                  title="Đăng lên TikTok"
+                  className="md:hidden w-8 h-8 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant shrink-0 disabled:opacity-40"
+                >
+                  {postingTikTok ? (
+                    <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                  ) : (
+                    <TikTokIcon />
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={connectTikTok}
+                  title="Kết nối TikTok"
+                  className="md:hidden w-8 h-8 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant shrink-0"
+                >
+                  <TikTokIcon />
+                </button>
+              ))}
+
+            {/* Compact single pill for phones (<sm): the full row below hides
+                entirely at that width, which used to leave a share link
+                opened on a phone -- the most common way this page gets
+                viewed -- with no distance/photo count visible at all. */}
+            <div className="pill sm:hidden text-on-surface-variant text-xs gap-1.5 whitespace-nowrap">
+              <span className="material-symbols-outlined text-sm text-secondary">route</span>
+              <b className="text-on-surface font-semibold">{trip.distanceKm.toFixed(1)}km</b>
+              <span className="opacity-40">·</span>
+              <span className="material-symbols-outlined text-sm text-secondary">photo_library</span>
+              {trip.photos.length}
+            </div>
 
             <div className="hidden sm:flex gap-2">
               <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap">

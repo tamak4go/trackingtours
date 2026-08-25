@@ -59,7 +59,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
           >
             Tracking Phượt
           </Link>
-          <ul className="hidden md:flex gap-6 text-sm">
+          <ul className="hidden lg:flex gap-6 text-sm">
             {TOP_LINKS.map((link) => (
               <li key={link.key}>
                 <Link
@@ -79,7 +79,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
         <div className="flex items-center gap-3">
           <Link
             href="/upload"
-            className="hidden md:flex items-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-[0_10px_30px_rgba(255,122,69,0.3)] hover:scale-95 transition-transform"
+            className="hidden lg:flex items-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-[0_10px_30px_rgba(255,122,69,0.3)] hover:scale-95 transition-transform"
           >
             Start Ride
           </Link>
@@ -128,6 +128,13 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
                   <X size={18} />
                 </button>
               </div>
+              <Link
+                href="/upload"
+                onClick={() => setMobileNavOpen(false)}
+                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold py-2.5 rounded-full shadow-[0_10px_30px_rgba(255,122,69,0.3)] mb-4"
+              >
+                Start Ride
+              </Link>
               <nav className="flex flex-col gap-1 text-sm">
                 {TOP_LINKS.map((link) => (
                   <Link

@@ -6,13 +6,20 @@ import { supabaseServer } from "@/lib/supabase-server";
 // supabaseServer() and the browser client both read from.
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
-  const next = req.nextUrl.searchParams.get("next") || "/";
-  const response = NextResponse.redirect(new URL(next, req.url));
+  const rawNext = req.nextUrl.searchParams.get("next") || "/";
+  // Only ever a same-origin path -- a bare "//evil.com" or absolute URL
+  // would otherwise turn this into an open redirect, since new URL()
+  // happily resolves those against req.url.
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
 
+  let ok = true;
   if (code) {
     const supabase = await supabaseServer();
-    await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    ok = !error;
   }
 
-  return response;
+  const url = new URL(next, req.url);
+  if (!ok) url.searchParams.set("auth", "error");
+  return NextResponse.redirect(url);
 }

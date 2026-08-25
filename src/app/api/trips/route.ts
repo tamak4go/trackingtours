@@ -118,43 +118,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Tạo chuyến đi thất bại (lỗi máy chủ)." }, { status: 500 });
   }
 
-  const uploads: { photoId: string; path: string; token: string; signedUrl: string }[] = [];
-  const photoRows: {
-    id: string;
-    trip_id: string;
-    storage_path: string;
-    lat: number;
-    lng: number;
-    taken_at: string | null;
-    sort_order: number;
-  }[] = [];
+  // One signed-upload-URL request per photo, in parallel -- up to 300 of
+  // these awaited one at a time would mean the round-trip latency to
+  // Storage times 300 before the client can start uploading anything.
+  const signResults = await Promise.all(
+    body.photos.map(async (p, i) => {
+      const photoId = crypto.randomUUID();
+      const path = `${trip.id}/${photoId}.${extFor(p.contentType)}`;
+      const { data: signed, error: signErr } = await admin.storage.from(BUCKET).createSignedUploadUrl(path);
+      return { p, i, photoId, path, signed, signErr };
+    }),
+  );
 
-  for (let i = 0; i < body.photos.length; i++) {
-    const p = body.photos[i];
-    const photoId = crypto.randomUUID();
-    const path = `${trip.id}/${photoId}.${extFor(p.contentType)}`;
-
-    const { data: signed, error: signErr } = await admin.storage
-      .from(BUCKET)
-      .createSignedUploadUrl(path);
-
-    if (signErr || !signed) {
-      console.error("signed url failed", signErr);
-      await admin.from("trips").delete().eq("id", trip.id); // cleanup partial trip
-      return NextResponse.json({ error: "Chuẩn bị tải ảnh lên thất bại." }, { status: 500 });
-    }
-
-    uploads.push({ photoId, path, token: signed.token, signedUrl: signed.signedUrl });
-    photoRows.push({
-      id: photoId,
-      trip_id: trip.id,
-      storage_path: path,
-      lat: p.lat,
-      lng: p.lng,
-      taken_at: p.takenAt,
-      sort_order: i,
-    });
+  const failedSign = signResults.find((r) => r.signErr || !r.signed);
+  if (failedSign) {
+    console.error("signed url failed", failedSign.signErr);
+    await admin.from("trips").delete().eq("id", trip.id); // cleanup partial trip
+    return NextResponse.json({ error: "Chuẩn bị tải ảnh lên thất bại." }, { status: 500 });
   }
+
+  const uploads = signResults.map(({ photoId, path, signed }) => ({
+    photoId,
+    path,
+    token: signed!.token,
+    signedUrl: signed!.signedUrl,
+  }));
+  const photoRows = signResults.map(({ p, i, photoId, path }) => ({
+    id: photoId,
+    trip_id: trip.id,
+    storage_path: path,
+    lat: p.lat,
+    lng: p.lng,
+    taken_at: p.takenAt,
+    sort_order: i,
+  }));
 
   const { error: photosErr } = await admin.from("photos").insert(photoRows);
   if (photosErr) {
