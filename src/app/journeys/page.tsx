@@ -7,7 +7,8 @@ import { Search, Plus } from "lucide-react";
 import { useMyTrips, removeMyTrip } from "@/lib/my-trips";
 import { useAuthUser } from "@/lib/use-auth-user";
 import { DashboardShell } from "@/components/DashboardShell";
-import { TripCard, type TripCardData } from "@/components/TripCard";
+import { JourneyCard } from "@/components/JourneyCard";
+import type { TripCardData } from "@/components/TripCard";
 
 type AccountTrip = TripCardData & { shareUrl: string };
 type SortKey = "newest" | "oldest" | "distance";
@@ -119,10 +120,10 @@ export default function JourneysPage() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pb-10"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-10"
           >
             {trips.map((t) => (
-              <TripCard key={t.slug} trip={t} href={t.href} onRemove={t.removable ? () => removeMyTrip(t.slug) : undefined} />
+              <JourneyCard key={t.slug} trip={t} href={t.href} onRemove={t.removable ? () => removeMyTrip(t.slug) : undefined} />
             ))}
           </motion.div>
         )}

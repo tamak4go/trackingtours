@@ -7,7 +7,8 @@ import { Route, Plus, ChevronRight } from "lucide-react";
 import { useMyTrips, removeMyTrip } from "@/lib/my-trips";
 import { useAuthUser } from "@/lib/use-auth-user";
 import { DashboardShell } from "@/components/DashboardShell";
-import { TripCard, type TripCardData } from "@/components/TripCard";
+import { JourneyCard } from "@/components/JourneyCard";
+import type { TripCardData } from "@/components/TripCard";
 
 type AccountTrip = TripCardData & { shareUrl: string };
 
@@ -89,12 +90,12 @@ export default function Home() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.15 }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
           >
             {user
-              ? accountTrips!.slice(0, 6).map((t) => <TripCard key={t.slug} trip={t} href={t.shareUrl} />)
+              ? accountTrips!.slice(0, 6).map((t) => <JourneyCard key={t.slug} trip={t} href={t.shareUrl} />)
               : localTrips.slice(0, 6).map((t) => (
-                  <TripCard key={t.slug} trip={{ ...t, title: null }} href={t.editUrl} onRemove={() => removeMyTrip(t.slug)} />
+                  <JourneyCard key={t.slug} trip={{ ...t, title: null }} href={t.editUrl} onRemove={() => removeMyTrip(t.slug)} />
                 ))}
           </motion.div>
         ) : (
