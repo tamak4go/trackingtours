@@ -41,11 +41,13 @@ export function genOAuthState(): string {
 export function buildAuthorizeUrl(state: string): string {
   const params = new URLSearchParams({
     client_key: requireEnv("TIKTOK_CLIENT_KEY"),
-    // video.publish is the scope gating the Content Posting API (init/upload
-    // endpoints below); user.info.basic just lets us show "Đã kết nối" with
-    // no extra call. Both must be enabled on the TikTok app, or TikTok
-    // rejects the whole authorize request up front.
-    scope: "user.info.basic,video.publish",
+    // video.upload is the scope for the draft/inbox upload flow this app
+    // uses (init/upload endpoints below, see uploadToInbox) -- video.publish
+    // is a different scope, only granted once TikTok audits the app for
+    // Direct Post, which this app doesn't have. user.info.basic just lets us
+    // show "Đã kết nối" with no extra call. Both scopes must be enabled on
+    // the TikTok app, or TikTok rejects the whole authorize request up front.
+    scope: "user.info.basic,video.upload",
     response_type: "code",
     redirect_uri: tiktokRedirectUri(),
     state,
