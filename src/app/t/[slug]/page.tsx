@@ -121,6 +121,12 @@ export default async function TripPage(props: PageProps<"/t/[slug]">) {
   const searchParams = await props.searchParams;
   const editParam = searchParams?.edit;
   const editToken = typeof editParam === "string" ? editParam : null;
+  // Set only by the render service's headless Chromium (see render-service/
+  // and the renderMode effect in TripView.tsx) -- never by a real visitor.
+  // Computed server-side (not read from window.location on the client) so
+  // there's no mismatch between what the server renders and what the client
+  // hydrates into: both agree on renderMode from the very first paint.
+  const renderMode = searchParams?.render === "1";
 
   const found = await getTrip(slug);
   if (!found) notFound();
@@ -141,5 +147,5 @@ export default async function TripPage(props: PageProps<"/t/[slug]">) {
   // ?edit= value must not be enough to peek at a private trip.
   if (!(await isTripVisible(found, editToken))) notFound();
 
-  return <TripView trip={trip} editToken={editToken} canEdit={!!editToken || signedInAsOwner} />;
+  return <TripView trip={trip} editToken={editToken} canEdit={!!editToken || signedInAsOwner} renderMode={renderMode} />;
 }

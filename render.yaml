@@ -1,0 +1,29 @@
+# Render.com Blueprint for the video-render service (render-service/) --
+# this is a separate deployment from the Next.js app itself (which stays on
+# Vercel; see docs/server-video-export-setup.md for the full setup).
+#
+# Connect this repo on Render.com as a Blueprint and it finds this file
+# automatically. All four env vars below are marked `sync: false` (secrets
+# entered by hand in the Render dashboard, never committed).
+services:
+  - type: web
+    name: trackingtours-render
+    runtime: docker
+    rootDir: render-service
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      # Shared secret the Next.js app's /api/render-video route sends as
+      # X-Render-Secret -- generate any long random string, e.g.
+      # `openssl rand -hex 32`, and set the same value on both sides.
+      - key: RENDER_SECRET
+        sync: false
+      # Public URL of the deployed Next.js app (e.g. https://your-app.vercel.app)
+      # -- this service loads /t/[slug]?render=1 from here.
+      - key: APP_BASE_URL
+        sync: false
+      # Same Supabase project as the main app (Project Settings > API).
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

@@ -119,6 +119,7 @@ export function TripView({
   trip,
   editToken,
   canEdit,
+  renderMode,
 }: {
   trip: Trip;
   // Present only when the share link carried ?edit=... -- still sent as a
@@ -131,12 +132,19 @@ export function TripView({
   // OR the current session belongs to the trip's owner (computed
   // server-side in t/[slug]/page.tsx, since only it can check that).
   canEdit: boolean;
+  // True only for the render service's headless Chromium (?render=1),
+  // computed server-side in t/[slug]/page.tsx -- never read from
+  // window.location here, so server and client render the same chrome-vs-no
+  // -chrome output from the first paint with no hydration mismatch.
+  renderMode: boolean;
 }) {
   const router = useRouter();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const movingMarkerRef = useRef<Marker | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  // Set by playAnimation(..., "manual") -- see the render-mode effect below.
+  const manualStepRef = useRef<((ts: number) => void) | null>(null);
   const stopsRef = useRef<Stop[]>([]);
   // Off-screen canvas driving the "Xuất mượt" export path (drawCaptureFrame
   // paints into it every animation tick; recordAnimationVideoCanvas below
@@ -196,10 +204,50 @@ export function TripView({
   const [tiktokAvailable, setTiktokAvailable] = useState(false);
   const [tiktokConnected, setTiktokConnected] = useState(false);
   const [postingTikTok, setPostingTikTok] = useState(false);
+  // Same idea as tiktokAvailable -- hides "Xuất chuẩn (server)" entirely for
+  // deployments that never set up the render service, instead of showing a
+  // button that 501s.
+  const [renderServiceAvailable, setRenderServiceAvailable] = useState(false);
   // Secondary "..." menu grouping the export-video/TikTok actions -- these
   // used to be individual icon-only buttons crowding the header next to the
   // duration pill with no label, easy to misread as one confusing cluster.
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  // "Xuất chuẩn (server)" -- true while a job is in flight on the render
+  // service (see exportVideoServer below). Separate from `recording`: this
+  // one doesn't touch this tab's map/animation at all, the render service
+  // loads its own headless copy of this same page.
+  const [serverRendering, setServerRendering] = useState(false);
+
+  // renderMode itself comes in as a prop (see t/[slug]/page.tsx), not from
+  // reading window.location here, so it strips the interactive chrome
+  // (header controls, sidebar, FAB -- see the JSX below) identically on the
+  // server render and the client hydration, with no mismatch between them.
+  //
+  // This effect is what actually drives the render-mode headless browser:
+  // once the map and its data sources are ready, it starts playAnimation
+  // with driver "manual" and exposes window.__advanceFrame so Puppeteer can
+  // step it one fixed-size tick at a time (see render-service/src/render.js).
+  // Completion is signalled via document.body.dataset instead of a return
+  // value/promise since Puppeteer polls the DOM from outside the page's JS
+  // realm.
+  useEffect(() => {
+    if (!renderMode || !mapReady) return;
+    const FRAME_DT_MS = 1000 / 30;
+    let fakeTs = 0;
+    (window as unknown as { __advanceFrame?: () => void }).__advanceFrame = () => {
+      fakeTs += FRAME_DT_MS;
+      manualStepRef.current?.(fakeTs);
+    };
+    const started = playAnimation(
+      () => {
+        document.body.dataset.renderDone = "1";
+      },
+      undefined,
+      "manual",
+    );
+    if (started) (window as unknown as { __renderReady?: boolean }).__renderReady = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderMode, mapReady]);
 
   useEffect(() => {
     fetch("/api/tiktok/status")
@@ -208,6 +256,11 @@ export function TripView({
         setTiktokAvailable(Boolean(d.available));
         setTiktokConnected(Boolean(d.connected));
       })
+      .catch(() => {});
+
+    fetch("/api/render-video")
+      .then((r) => r.json())
+      .then((d) => setRenderServiceAvailable(Boolean(d.available)))
       .catch(() => {});
 
     // /api/tiktok/callback redirects back here with ?tiktok=connected|error
@@ -384,9 +437,18 @@ export function TripView({
   // export path (recordAnimationVideoCanvas) can't wait for these values to
   // round-trip through React state/re-render, it needs them the instant this
   // tick decides them.
+  // driver "raf" (default) is the normal Play button: the browser paces
+  // ticks in real time via requestAnimationFrame. driver "manual" is for the
+  // server-side render pipeline (see the render-mode effect below): nothing
+  // schedules the next tick automatically -- manualStepRef is exposed so an
+  // external caller (Puppeteer, via window.__advanceFrame) can step the
+  // exact same state machine one fixed-size tick at a time, with no wall
+  // clock involved at all. That's what makes the server export frame-exact
+  // regardless of how fast or slow the render machine actually runs.
   function playAnimation(
     onDone?: () => void,
     onFrame?: (frame: { pos: [number, number]; progressPct: number; activeStop: { photo: TripPhoto; distanceKm: number } | null }) => void,
+    driver: "raf" | "manual" = "raf",
   ): boolean {
     const map = mapRef.current;
     const coords = trip.routeCoords;
@@ -426,6 +488,13 @@ export function TripView({
       activeStop: null as { photo: TripPhoto; distanceKm: number } | null,
     };
 
+    // In manual mode there's no wall clock to schedule against -- the next
+    // tick only happens when the external driver calls manualStepRef.current
+    // again (see the render-mode effect below), so this is a no-op.
+    const scheduleNext = () => {
+      if (driver === "raf") animFrameRef.current = requestAnimationFrame(step);
+    };
+
     const step = (ts: number) => {
       if (state.mode === "stopped") {
         if (ts >= state.resumeAt) {
@@ -435,7 +504,7 @@ export function TripView({
           setStopCard(null);
         }
         onFrame?.({ pos: state.pos, progressPct: (state.idx / (coords.length - 1)) * 100, activeStop: state.activeStop });
-        animFrameRef.current = requestAnimationFrame(step);
+        scheduleNext();
         return;
       }
 
@@ -472,7 +541,7 @@ export function TripView({
         state.mode = "stopped";
         state.resumeAt = ts + 1500;
         onFrame?.({ pos, progressPct: pct, activeStop: state.activeStop });
-        animFrameRef.current = requestAnimationFrame(step);
+        scheduleNext();
         return;
       }
 
@@ -484,10 +553,14 @@ export function TripView({
         onDone?.();
         return;
       }
-      animFrameRef.current = requestAnimationFrame(step);
+      scheduleNext();
     };
 
-    animFrameRef.current = requestAnimationFrame(step);
+    if (driver === "manual") {
+      manualStepRef.current = step;
+    } else {
+      animFrameRef.current = requestAnimationFrame(step);
+    }
     return true;
   }
 
@@ -558,11 +631,11 @@ export function TripView({
     return blob;
   }
 
-  async function exportVideo() {
-    const blob = await recordAnimationVideo();
-    if (!blob) return;
-
-    const filename = `${(title || "chuyen-di").replace(/[\\/:*?"<>|]/g, "").trim() || "chuyen-di"}.webm`;
+  // Shared by all three export paths (screen-recorded, canvas, server) --
+  // they only differ in how the Blob gets made, not in what happens to it
+  // afterward.
+  async function shareOrDownloadVideo(blob: Blob, ext: string) {
+    const filename = `${(title || "chuyen-di").replace(/[\\/:*?"<>|]/g, "").trim() || "chuyen-di"}.${ext}`;
     const file = new File([blob], filename, { type: blob.type });
 
     // On mobile, hand the clip to the OS share sheet so the user can pick
@@ -570,11 +643,11 @@ export function TripView({
     // Falls back to a plain download wherever Web Share's file support
     // isn't there (most desktop browsers), and also if share() itself
     // throws: Web Share requires a live user-activation window from the
-    // click, but recordAnimationVideo() above just spent the whole
-    // animation's length recording, so that window has usually expired by
-    // the time we get here -- share() rejects with no picker ever shown,
-    // which would otherwise look identical to a silent no-op with nothing
-    // saved and no error.
+    // click, but the export above just spent the whole animation's length
+    // (or a server round trip) producing the blob, so that window has
+    // usually expired by the time we get here -- share() rejects with no
+    // picker ever shown, which would otherwise look identical to a silent
+    // no-op with nothing saved and no error.
     if (navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: title || "Chuyến đi phượt" });
@@ -590,6 +663,12 @@ export function TripView({
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function exportVideo() {
+    const blob = await recordAnimationVideo();
+    if (!blob) return;
+    await shareOrDownloadVideo(blob, "webm");
   }
 
   // Paints one frame of the "Xuất mượt" export onto captureCanvasRef: the
@@ -778,25 +857,62 @@ export function TripView({
   async function exportVideoCanvas() {
     const blob = await recordAnimationVideoCanvas();
     if (!blob) return;
+    await shareOrDownloadVideo(blob, "webm");
+  }
 
-    const filename = `${(title || "chuyen-di").replace(/[\\/:*?"<>|]/g, "").trim() || "chuyen-di"}.webm`;
-    const file = new File([blob], filename, { type: blob.type });
-
-    if (navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file], title: title || "Chuyến đi phượt" });
+  // "Xuất chuẩn (server)": asks the render service (see render-service/, a
+  // separate Puppeteer+ffmpeg deployment -- Next.js API routes can't run
+  // either) to render this trip itself, headlessly, frame-by-frame with no
+  // wall clock -- see the renderMode effect above for the deterministic
+  // stepping this relies on. Slower than the two client-side exports (a
+  // render job takes at least as long as the animation itself, often
+  // longer on a free-tier CPU) but the only one whose output doesn't depend
+  // on this device's performance at all, since nothing about this device
+  // touches the actual rendering.
+  async function exportVideoServer() {
+    if (!canPlay || serverRendering) return;
+    setServerRendering(true);
+    try {
+      const startRes = await fetch(tripApiUrl("/api/render-video"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: trip.slug }),
+      });
+      if (!startRes.ok) {
+        const err = await startRes.json().catch(() => ({}));
+        alert(err.error || "Không khởi động được xuất video server.");
         return;
-      } catch {
-        // fall through to direct download below
       }
-    }
+      const { jobId } = (await startRes.json()) as { jobId: string };
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+      // Polls rather than a websocket/SSE -- a render job is a one-shot
+      // background task lasting well under a minute, not worth a
+      // persistent connection for.
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const statusRes = await fetch(`/api/render-video/${encodeURIComponent(jobId)}`);
+        if (!statusRes.ok) {
+          alert("Mất kết nối tới dịch vụ xuất video.");
+          return;
+        }
+        const job = (await statusRes.json()) as { status: string; videoUrl?: string; error?: string };
+        if (job.status === "done" && job.videoUrl) {
+          const videoRes = await fetch(job.videoUrl);
+          const blob = await videoRes.blob();
+          await shareOrDownloadVideo(blob, "mp4");
+          return;
+        }
+        if (job.status === "error") {
+          alert(job.error || "Xuất video server thất bại.");
+          return;
+        }
+        // "queued" | "rendering" -- keep polling.
+      }
+    } catch {
+      alert("Xuất video server thất bại.");
+    } finally {
+      setServerRendering(false);
+    }
   }
 
   // Connects this browser to TikTok (see /api/tiktok/auth) so postToTikTok
@@ -1238,26 +1354,35 @@ export function TripView({
           </AnimatePresence>
         </div>
 
-        <aside className="hidden lg:flex flex-col w-80 h-full glass border-l border-border-glass bg-surface-container-low/80 relative z-20">
-          <div className="p-4 border-b border-border-glass flex items-center justify-between shrink-0">
-            <h3 className="text-sm font-bold">Hành trình ảnh</h3>
-            <span className="text-xs text-on-surface-variant bg-surface-glass px-2 py-1 rounded">{photos.length}</span>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">{photos.map(renderPhotoItem)}</div>
-        </aside>
+        {/* All chrome below is real-visitor-only -- render=1 (see
+            renderMode above) is exclusively the render service's headless
+            browser capturing frames, and none of this belongs in the
+            exported video. */}
+        {!renderMode && (
+          <aside className="hidden lg:flex flex-col w-80 h-full glass border-l border-border-glass bg-surface-container-low/80 relative z-20">
+            <div className="p-4 border-b border-border-glass flex items-center justify-between shrink-0">
+              <h3 className="text-sm font-bold">Hành trình ảnh</h3>
+              <span className="text-xs text-on-surface-variant bg-surface-glass px-2 py-1 rounded">{photos.length}</span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">{photos.map(renderPhotoItem)}</div>
+          </aside>
+        )}
 
         {/* Mobile-only: the sidebar above is hidden below `lg`, so a floating
             button opens the same photo list as a bottom sheet instead. */}
-        <button
-          onClick={() => setMobileSheetOpen(true)}
-          className="lg:hidden absolute bottom-4 right-4 z-30 glass w-14 h-14 rounded-full flex items-center justify-center shadow-xl shadow-black/40"
-        >
-          <span className="material-symbols-outlined text-primary-container text-2xl">photo_library</span>
-          <span className="absolute -top-1 -right-1 bg-gradient-to-br from-primary-container to-gradient-pink text-on-primary-container text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-            {trip.photos.length}
-          </span>
-        </button>
+        {!renderMode && (
+          <button
+            onClick={() => setMobileSheetOpen(true)}
+            className="lg:hidden absolute bottom-4 right-4 z-30 glass w-14 h-14 rounded-full flex items-center justify-center shadow-xl shadow-black/40"
+          >
+            <span className="material-symbols-outlined text-primary-container text-2xl">photo_library</span>
+            <span className="absolute -top-1 -right-1 bg-gradient-to-br from-primary-container to-gradient-pink text-on-primary-container text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+              {trip.photos.length}
+            </span>
+          </button>
+        )}
 
+        {!renderMode && (
         <header className="absolute top-4 left-4 right-4 lg:right-[336px] z-30 glass rounded-full px-4 sm:px-6 py-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 transition-all">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="material-symbols-outlined text-primary-container text-2xl shrink-0">two_wheeler</span>
@@ -1419,6 +1544,22 @@ export function TripView({
                   </span>
                   Xuất mượt (không quay màn hình)
                 </button>
+                {renderServiceAvailable && (
+                  <button
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      exportVideoServer();
+                    }}
+                    disabled={!canPlay || serverRendering}
+                    title="Render trên server, không phụ thuộc máy/mạng của bạn -- chậm hơn nhưng luôn ra kết quả giống nhau"
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                  >
+                    <span className={`material-symbols-outlined text-lg shrink-0 ${serverRendering ? "animate-spin" : ""}`}>
+                      {serverRendering ? "progress_activity" : "cloud_done"}
+                    </span>
+                    {serverRendering ? "Đang xuất trên server..." : "Xuất chuẩn (server)"}
+                  </button>
+                )}
                 {tiktokAvailable &&
                   (tiktokConnected ? (
                     <>
@@ -1465,6 +1606,7 @@ export function TripView({
             )}
           </AnimatePresence>
         </header>
+        )}
       </main>
 
       <AnimatePresence>
