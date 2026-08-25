@@ -36,6 +36,38 @@ function lerp(a: [number, number], b: [number, number], t: number): [number, num
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
 
+// Small canvas helpers used only by the "smooth export" capture path below
+// (drawCaptureFrame) -- there's no DOM/CSS to lean on there, everything the
+// screen-recorded export gets for free (rounded corners, object-fit: cover)
+// has to be drawn by hand.
+function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+function drawImageCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
+  const ir = img.naturalWidth / img.naturalHeight;
+  const dr = w / h;
+  let sx = 0,
+    sy = 0,
+    sw = img.naturalWidth,
+    sh = img.naturalHeight;
+  if (ir > dr) {
+    sw = img.naturalHeight * dr;
+    sx = (img.naturalWidth - sw) / 2;
+  } else {
+    sh = img.naturalWidth / dr;
+    sy = (img.naturalHeight - sh) / 2;
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+}
+
 // Simplified TikTok glyph (there's no "tiktok" symbol in material-symbols) --
 // same 18px box as the other header icons so it lines up in the toolbar.
 function TikTokIcon({ className }: { className?: string }) {
@@ -106,6 +138,17 @@ export function TripView({
   const movingMarkerRef = useRef<Marker | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const stopsRef = useRef<Stop[]>([]);
+  // Off-screen canvas driving the "Xuất mượt" export path (drawCaptureFrame
+  // paints into it every animation tick; recordAnimationVideoCanvas below
+  // reads it via canvas.captureStream()). captureScaleRef is device pixels
+  // per CSS pixel for that canvas, set once per recording so drawCaptureFrame
+  // doesn't call getBoundingClientRect() on every frame.
+  const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const captureScaleRef = useRef(1);
+  // Photo <img> elements preloaded with crossOrigin so drawImageCover can
+  // draw them into captureCanvasRef without tainting it (untainted is what
+  // lets canvas.captureStream() actually include them in the output).
+  const photoImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
@@ -201,6 +244,22 @@ export function TripView({
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [moreMenuOpen]);
+
+  // Preloads stop-card photos for the canvas export path (see
+  // captureCanvasRef above) -- crossOrigin must be set before `src` is
+  // assigned, or the browser fetches without it and the canvas ends up
+  // tainted anyway. Supabase Storage's public bucket URLs already send
+  // permissive CORS headers, same as the tile server MAP_STYLE points at.
+  useEffect(() => {
+    const map = new Map<string, HTMLImageElement>();
+    trip.photos.forEach((p) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = p.url;
+      map.set(p.id, img);
+    });
+    photoImagesRef.current = map;
+  }, [trip.photos]);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -320,7 +379,15 @@ export function TripView({
   // onDone fires exactly once, right when the route finishes playing --
   // used by exportVideo() below to know precisely when to stop recording,
   // without polling isPlaying/showComplete state from outside.
-  function playAnimation(onDone?: () => void): boolean {
+  // onFrame fires every tick with the data drawCaptureFrame needs (position,
+  // progress, active stop card) computed synchronously here -- the canvas
+  // export path (recordAnimationVideoCanvas) can't wait for these values to
+  // round-trip through React state/re-render, it needs them the instant this
+  // tick decides them.
+  function playAnimation(
+    onDone?: () => void,
+    onFrame?: (frame: { pos: [number, number]; progressPct: number; activeStop: { photo: TripPhoto; distanceKm: number } | null }) => void,
+  ): boolean {
     const map = mapRef.current;
     const coords = trip.routeCoords;
     if (!map || !mapReady || coords.length < 2 || isPlaying) return false;
@@ -349,15 +416,25 @@ export function TripView({
     const totalDurationMs = Math.min(Math.max(coords.length * 10, 6000), 25000);
     const stepMs = totalDurationMs / (coords.length - 1);
 
-    const state = { idx: 0, lastTime: null as number | null, mode: "travel" as "travel" | "stopped", resumeAt: 0, stopPointer: 0 };
+    const state = {
+      idx: 0,
+      lastTime: null as number | null,
+      mode: "travel" as "travel" | "stopped",
+      resumeAt: 0,
+      stopPointer: 0,
+      pos: coords[0] as [number, number],
+      activeStop: null as { photo: TripPhoto; distanceKm: number } | null,
+    };
 
     const step = (ts: number) => {
       if (state.mode === "stopped") {
         if (ts >= state.resumeAt) {
           state.mode = "travel";
           state.lastTime = ts;
+          state.activeStop = null;
           setStopCard(null);
         }
+        onFrame?.({ pos: state.pos, progressPct: (state.idx / (coords.length - 1)) * 100, activeStop: state.activeStop });
         animFrameRef.current = requestAnimationFrame(step);
         return;
       }
@@ -371,6 +448,7 @@ export function TripView({
       const i1 = Math.min(i0 + 1, coords.length - 1);
       const frac = state.idx - i0;
       const pos = lerp(coords[i0], coords[i1], frac);
+      state.pos = pos;
 
       const traveled = [...coords.slice(0, i0 + 1), pos];
       progressSource.setData({ type: "Feature", geometry: { type: "LineString", coordinates: traveled }, properties: {} });
@@ -381,18 +459,24 @@ export function TripView({
       });
       movingMarkerRef.current?.setLngLat(pos);
       map.jumpTo({ center: pos });
-      setProgressPct((state.idx / (coords.length - 1)) * 100);
+      const pct = (state.idx / (coords.length - 1)) * 100;
+      setProgressPct(pct);
 
       const stops = stopsRef.current;
       if (state.stopPointer < stops.length && stops[state.stopPointer].coordIdx <= state.idx) {
+        const distanceKm = (state.idx / (coords.length - 1)) * trip.distanceKm;
         setStopCard(stops[state.stopPointer].photo);
-        setStopCardDistanceKm((state.idx / (coords.length - 1)) * trip.distanceKm);
+        setStopCardDistanceKm(distanceKm);
+        state.activeStop = { photo: stops[state.stopPointer].photo, distanceKm };
         state.stopPointer++;
         state.mode = "stopped";
         state.resumeAt = ts + 1500;
+        onFrame?.({ pos, progressPct: pct, activeStop: state.activeStop });
         animFrameRef.current = requestAnimationFrame(step);
         return;
       }
+
+      onFrame?.({ pos, progressPct: pct, activeStop: state.activeStop });
 
       if (state.idx >= coords.length - 1) {
         setIsPlaying(false);
@@ -407,14 +491,19 @@ export function TripView({
     return true;
   }
 
-  // Records the Play animation as a video Blob. The moving marker, stop
-  // cards, and progress bar are all separate DOM elements layered over
-  // MapLibre's canvas (that's how MapLibre markers and our own React
-  // overlays work) -- so capturing just the map's <canvas> would miss most
-  // of what makes the animation worth sharing. Screen/tab capture
-  // (getDisplayMedia) is the only way to record everything exactly as it's
-  // composited on screen; it always requires one native browser permission
-  // prompt per recording; there's no way to skip that. Shared by exportVideo
+  // "Xuất nhanh": records the Play animation as a video Blob by screen/tab
+  // capture. The moving marker, stop cards, and progress bar are all
+  // separate DOM elements layered over MapLibre's canvas (that's how
+  // MapLibre markers and our own React overlays work) -- so capturing just
+  // the map's <canvas> would miss most of what makes the animation worth
+  // sharing. getDisplayMedia records everything exactly as it's composited
+  // on screen, no re-implementation needed -- but it always requires one
+  // native browser permission prompt per recording, and the output's
+  // smoothness rides on however busy the OS/tab compositor happens to be
+  // during that particular capture (dropped frames, screen scaling, other
+  // windows) rather than on anything this app controls. recordAnimationVideoCanvas
+  // below ("Xuất mượt") trades the free composited overlays for a
+  // hand-drawn canvas that sidesteps all of that. Shared by exportVideo
   // (download/share sheet) and postToTikTok (upload) below so the capture
   // logic only exists once.
   async function recordAnimationVideo(): Promise<Blob | null> {
@@ -486,6 +575,213 @@ export function TripView({
     // the time we get here -- share() rejects with no picker ever shown,
     // which would otherwise look identical to a silent no-op with nothing
     // saved and no error.
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: title || "Chuyến đi phượt" });
+        return;
+      } catch {
+        // fall through to direct download below
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Paints one frame of the "Xuất mượt" export onto captureCanvasRef: the
+  // map's own canvas plus hand-drawn versions of the moving marker, progress
+  // bar/chapter dots, and stop card -- everything recordAnimationVideo above
+  // gets for free from the DOM/CSS. Called synchronously from playAnimation's
+  // onFrame every tick, so it always draws the same position React is about
+  // to (asynchronously) render, never a stale one.
+  function drawCaptureFrame(frame: {
+    pos: [number, number];
+    progressPct: number;
+    activeStop: { photo: TripPhoto; distanceKm: number } | null;
+  }) {
+    const canvas = captureCanvasRef.current;
+    const map = mapRef.current;
+    if (!canvas || !map) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const scale = captureScaleRef.current;
+
+    // The map's own <canvas> is already exactly what's on screen -- just
+    // stretch its full backing-store resolution onto ours (both are in
+    // device pixels, so this stays crisp regardless of devicePixelRatio).
+    const mapCanvas = map.getCanvas();
+    ctx.drawImage(mapCanvas, 0, 0, mapCanvas.width, mapCanvas.height, 0, 0, W, H);
+
+    // Moving marker: a glowing dot standing in for the .moto-marker-glow DOM
+    // badge (see buildMotoMarkerEl) -- close in spirit, not a pixel clone.
+    const screenPt = map.project(frame.pos);
+    const mx = screenPt.x * scale;
+    const my = screenPt.y * scale;
+    ctx.save();
+    ctx.shadowColor = ACCENT_GLOW;
+    ctx.shadowBlur = 18 * scale;
+    ctx.fillStyle = "#1c1917";
+    ctx.beginPath();
+    ctx.arc(mx, my, 16 * scale, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.lineWidth = 2 * scale;
+    ctx.strokeStyle = ACCENT;
+    ctx.beginPath();
+    ctx.arc(mx, my, 16 * scale, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = ACCENT;
+    ctx.beginPath();
+    ctx.arc(mx, my, 5 * scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Progress bar + chapter dots, mirroring the JSX around `isPlaying &&`.
+    const marginX = 16 * scale;
+    const barY = 84 * scale;
+    const barH = 4 * scale;
+    const barW = W - marginX * 2;
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    roundRectPath(ctx, marginX, barY, barW, barH, barH / 2);
+    ctx.fill();
+    ctx.fillStyle = ACCENT;
+    roundRectPath(ctx, marginX, barY, barW * Math.min(frame.progressPct / 100, 1), barH, barH / 2);
+    ctx.fill();
+    const coords = trip.routeCoords;
+    if (coords.length > 1) {
+      for (const stop of stopsRef.current) {
+        const pct = (stop.coordIdx / (coords.length - 1)) * 100;
+        const visited = frame.progressPct >= pct;
+        ctx.fillStyle = visited ? ACCENT : "rgba(255,255,255,0.35)";
+        ctx.beginPath();
+        ctx.arc(marginX + barW * (pct / 100), barY + barH / 2, 4 * scale, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Stop card, mirroring the <motion.div> block around `{stopCard && ...}`.
+    if (frame.activeStop) {
+      const cardW = 260 * scale;
+      const photoH = 120 * scale;
+      const padding = 12 * scale;
+      const cardX = 16 * scale;
+      const textLines = 3;
+      const cardH = photoH + padding * 2 + textLines * 18 * scale;
+      const cardY = H - cardH - 16 * scale;
+
+      ctx.save();
+      ctx.fillStyle = "rgba(28,25,23,0.72)";
+      roundRectPath(ctx, cardX, cardY, cardW, cardH, 16 * scale);
+      ctx.fill();
+
+      roundRectPath(ctx, cardX + padding, cardY + padding, cardW - padding * 2, photoH, 10 * scale);
+      ctx.clip();
+      const img = photoImagesRef.current.get(frame.activeStop.photo.id);
+      if (img && img.complete && img.naturalWidth) {
+        drawImageCover(ctx, img, cardX + padding, cardY + padding, cardW - padding * 2, photoH);
+      } else {
+        ctx.fillStyle = "#292524";
+        ctx.fillRect(cardX + padding, cardY + padding, cardW - padding * 2, photoH);
+      }
+      ctx.restore();
+
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      const badge = `${frame.activeStop.distanceKm.toFixed(1)} km`;
+      ctx.font = `${11 * scale}px sans-serif`;
+      const badgeW = ctx.measureText(badge).width + 12 * scale;
+      roundRectPath(
+        ctx,
+        cardX + cardW - padding - badgeW,
+        cardY + padding + photoH - 22 * scale,
+        badgeW,
+        16 * scale,
+        4 * scale,
+      );
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.textBaseline = "middle";
+      ctx.fillText(badge, cardX + cardW - padding - badgeW + 6 * scale, cardY + padding + photoH - 14 * scale);
+
+      const placeName = placeNameOf(frame.activeStop.photo);
+      let lineY = cardY + padding + photoH + 20 * scale;
+      if (placeName) {
+        ctx.fillStyle = "#fff";
+        ctx.font = `600 ${13 * scale}px sans-serif`;
+        ctx.fillText(placeName, cardX + padding, lineY, cardW - padding * 2);
+        lineY += 18 * scale;
+      }
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.font = `${11 * scale}px sans-serif`;
+      ctx.fillText(fmtTime(frame.activeStop.photo.takenAt), cardX + padding, lineY);
+    }
+  }
+
+  // "Xuất mượt": same animation, but drawn frame-by-frame onto
+  // captureCanvasRef (see drawCaptureFrame) and captured via
+  // canvas.captureStream() instead of getDisplayMedia. No permission prompt,
+  // and the frame rate is whatever this app hands MediaRecorder rather than
+  // whatever the OS compositor was doing at the time -- trading
+  // recordAnimationVideo's free DOM-composited overlays for output that
+  // doesn't depend on how busy the rest of the screen was during capture.
+  async function recordAnimationVideoCanvas(): Promise<Blob | null> {
+    if (!canPlay || recording || isPlaying) return null;
+    const map = mapRef.current;
+    const container = mapContainerRef.current;
+    const canvas = captureCanvasRef.current;
+    if (!map || !container || !canvas) return null;
+    if (typeof canvas.captureStream !== "function") {
+      alert("Trình duyệt này không hỗ trợ xuất video mượt. Thử 'Xuất nhanh' thay thế.");
+      return null;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    captureScaleRef.current = dpr;
+
+    const stream = canvas.captureStream(30);
+    const mimeType =
+      ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    const chunks: BlobPart[] = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+
+    let stopped = false;
+    const stopRecording = () => {
+      if (stopped) return;
+      stopped = true;
+      if (recorder.state !== "inactive") recorder.stop();
+      stream.getTracks().forEach((t) => t.stop());
+    };
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      recorder.onstop = () => {
+        setRecording(false);
+        resolve(chunks.length ? new Blob(chunks, { type: mimeType || "video/webm" }) : null);
+      };
+      recorder.start();
+      setRecording(true);
+      if (!playAnimation(stopRecording, drawCaptureFrame)) stopRecording();
+    });
+    return blob;
+  }
+
+  async function exportVideoCanvas() {
+    const blob = await recordAnimationVideoCanvas();
+    if (!blob) return;
+
+    const filename = `${(title || "chuyen-di").replace(/[\\/:*?"<>|]/g, "").trim() || "chuyen-di"}.webm`;
+    const file = new File([blob], filename, { type: blob.type });
+
     if (navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: title || "Chuyến đi phượt" });
@@ -797,6 +1093,16 @@ export function TripView({
               stylesheet rules, so this is the robust fix regardless of import order. */}
           <div ref={mapContainerRef} style={{ position: "absolute", inset: 0 }} />
 
+          {/* Off-screen -- never shown, only ever read via captureStream() by
+              recordAnimationVideoCanvas ("Xuất mượt"). Kept in the DOM (not
+              display:none) since some browsers pause canvas updates on
+              display:none elements. */}
+          <canvas
+            ref={captureCanvasRef}
+            aria-hidden
+            style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+          />
+
           {mapSlow && !mapReady && (
             <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
               <div className="glass rounded-2xl p-5 max-w-xs text-center pointer-events-auto">
@@ -817,7 +1123,7 @@ export function TripView({
           {recording && (
             <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              Đang quay video...
+              Đang xuất video...
             </div>
           )}
 
@@ -1097,7 +1403,21 @@ export function TripView({
                   <span className="material-symbols-outlined text-lg shrink-0">
                     {recording ? "fiber_manual_record" : "videocam"}
                   </span>
-                  Xuất video hành trình
+                  Xuất nhanh (quay màn hình)
+                </button>
+                <button
+                  onClick={() => {
+                    setMoreMenuOpen(false);
+                    exportVideoCanvas();
+                  }}
+                  disabled={!canPlay || recording || isPlaying}
+                  title="Không xin quyền chia sẻ màn hình, không bị giật do máy/tab đang bận việc khác"
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                >
+                  <span className="material-symbols-outlined text-lg shrink-0">
+                    {recording ? "fiber_manual_record" : "auto_awesome_motion"}
+                  </span>
+                  Xuất mượt (không quay màn hình)
                 </button>
                 {tiktokAvailable &&
                   (tiktokConnected ? (
