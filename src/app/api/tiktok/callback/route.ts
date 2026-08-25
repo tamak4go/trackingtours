@@ -20,6 +20,12 @@ export async function GET(req: NextRequest) {
   };
 
   if (error || !code || !state || state !== expectedState) {
+    console.warn("tiktok callback rejected before token exchange", {
+      error,
+      hasCode: Boolean(code),
+      hasState: Boolean(state),
+      stateMismatch: Boolean(state) && state !== expectedState,
+    });
     return redirectTo("error");
   }
 
@@ -41,7 +47,8 @@ export async function GET(req: NextRequest) {
     });
     res.cookies.set(TIKTOK_COOKIE.openId, token.open_id, { ...cookieOpts, maxAge: 365 * 24 * 3600 });
     return res;
-  } catch {
+  } catch (err) {
+    console.error("tiktok token exchange failed", err);
     return redirectTo("error");
   }
 }
