@@ -479,13 +479,19 @@ export function TripView({
     // On mobile, hand the clip to the OS share sheet so the user can pick
     // TikTok (or anything else) directly -- no TikTok account/API needed.
     // Falls back to a plain download wherever Web Share's file support
-    // isn't there (most desktop browsers).
+    // isn't there (most desktop browsers), and also if share() itself
+    // throws: Web Share requires a live user-activation window from the
+    // click, but recordAnimationVideo() above just spent the whole
+    // animation's length recording, so that window has usually expired by
+    // the time we get here -- share() rejects with no picker ever shown,
+    // which would otherwise look identical to a silent no-op with nothing
+    // saved and no error.
     if (navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: title || "Chuyến đi phượt" });
         return;
       } catch {
-        return; // user backed out of the share sheet -- not an error, don't also fall through to download
+        // fall through to direct download below
       }
     }
 
