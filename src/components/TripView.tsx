@@ -153,6 +153,10 @@ export function TripView({
   const [tiktokAvailable, setTiktokAvailable] = useState(false);
   const [tiktokConnected, setTiktokConnected] = useState(false);
   const [postingTikTok, setPostingTikTok] = useState(false);
+  // Secondary "..." menu grouping the export-video/TikTok actions -- these
+  // used to be individual icon-only buttons crowding the header next to the
+  // duration pill with no label, easy to misread as one confusing cluster.
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/tiktok/status")
@@ -177,6 +181,26 @@ export function TripView({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Closes the "..." menu on an outside click or Escape. `data-more-menu`
+  // marks both trigger buttons and the panel itself, so a click landing on
+  // any of them (including the trigger that just toggled it open) doesn't
+  // immediately re-close it.
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    function closeOnOutsideClick(e: MouseEvent) {
+      if (!(e.target as HTMLElement).closest("[data-more-menu]")) setMoreMenuOpen(false);
+    }
+    function closeOnEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setMoreMenuOpen(false);
+    }
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [moreMenuOpen]);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -949,45 +973,13 @@ export function TripView({
               {playLabel}
             </button>
             <button
-              onClick={exportVideo}
-              disabled={!canPlay || recording || isPlaying}
-              title="Xuất video hành trình"
-              className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-primary-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+              data-more-menu
+              onClick={() => setMoreMenuOpen((o) => !o)}
+              title="Thêm tuỳ chọn"
+              className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-primary-container transition-colors shrink-0"
             >
-              <span className="material-symbols-outlined text-lg">{recording ? "fiber_manual_record" : "videocam"}</span>
+              <span className="material-symbols-outlined text-lg">more_horiz</span>
             </button>
-            {tiktokAvailable &&
-              (tiktokConnected ? (
-                <>
-                  <button
-                    onClick={postToTikTok}
-                    disabled={!canPlay || recording || isPlaying || postingTikTok}
-                    title="Đăng lên TikTok (vào Bản nháp trong app TikTok)"
-                    className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-[#ff0050] transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-                  >
-                    {postingTikTok ? (
-                      <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
-                    ) : (
-                      <TikTokIcon />
-                    )}
-                  </button>
-                  <button
-                    onClick={disconnectTikTok}
-                    title="Ngắt kết nối TikTok"
-                    className="text-[10px] text-on-surface-variant hover:text-error transition-colors shrink-0"
-                  >
-                    Ngắt
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={connectTikTok}
-                  title="Kết nối TikTok để đăng trực tiếp"
-                  className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-[#ff0050] transition-colors shrink-0"
-                >
-                  <TikTokIcon />
-                </button>
-              ))}
           </div>
 
           <div className="flex items-center justify-end gap-2 overflow-x-auto min-w-0">
@@ -1001,36 +993,13 @@ export function TripView({
               </span>
             </button>
             <button
-              onClick={exportVideo}
-              disabled={!canPlay || recording || isPlaying}
-              title="Xuất video hành trình"
-              className="md:hidden w-8 h-8 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant shrink-0 disabled:opacity-40"
+              data-more-menu
+              onClick={() => setMoreMenuOpen((o) => !o)}
+              title="Thêm tuỳ chọn"
+              className="md:hidden w-8 h-8 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant shrink-0"
             >
-              <span className="material-symbols-outlined text-lg">{recording ? "fiber_manual_record" : "videocam"}</span>
+              <span className="material-symbols-outlined text-lg">more_horiz</span>
             </button>
-            {tiktokAvailable &&
-              (tiktokConnected ? (
-                <button
-                  onClick={postToTikTok}
-                  disabled={!canPlay || recording || isPlaying || postingTikTok}
-                  title="Đăng lên TikTok"
-                  className="md:hidden w-8 h-8 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant shrink-0 disabled:opacity-40"
-                >
-                  {postingTikTok ? (
-                    <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
-                  ) : (
-                    <TikTokIcon />
-                  )}
-                </button>
-              ) : (
-                <button
-                  onClick={connectTikTok}
-                  title="Kết nối TikTok"
-                  className="md:hidden w-8 h-8 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant shrink-0"
-                >
-                  <TikTokIcon />
-                </button>
-              ))}
 
             {/* Compact single pill for phones (<sm): the full row below hides
                 entirely at that width, which used to leave a share link
@@ -1100,6 +1069,75 @@ export function TripView({
               </button>
             )}
           </div>
+
+          <AnimatePresence>
+            {moreMenuOpen && (
+              <motion.div
+                data-more-menu
+                initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                transition={{ duration: 0.15 }}
+                className="absolute top-full right-3 sm:right-4 mt-2 z-40 glass rounded-2xl p-1.5 flex flex-col gap-0.5 w-64 shadow-xl shadow-black/40"
+              >
+                <button
+                  onClick={() => {
+                    setMoreMenuOpen(false);
+                    exportVideo();
+                  }}
+                  disabled={!canPlay || recording || isPlaying}
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                >
+                  <span className="material-symbols-outlined text-lg shrink-0">
+                    {recording ? "fiber_manual_record" : "videocam"}
+                  </span>
+                  Xuất video hành trình
+                </button>
+                {tiktokAvailable &&
+                  (tiktokConnected ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          setMoreMenuOpen(false);
+                          postToTikTok();
+                        }}
+                        disabled={!canPlay || recording || isPlaying || postingTikTok}
+                        title="Đăng lên TikTok -- vào Bản nháp trong app TikTok để hoàn tất"
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-[#ff0050] hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                      >
+                        {postingTikTok ? (
+                          <span className="material-symbols-outlined text-lg shrink-0 animate-spin">progress_activity</span>
+                        ) : (
+                          <TikTokIcon className="shrink-0" />
+                        )}
+                        Đăng lên TikTok
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMoreMenuOpen(false);
+                          disconnectTikTok();
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-error hover:bg-surface-glass transition-colors text-left"
+                      >
+                        <span className="material-symbols-outlined text-lg shrink-0">link_off</span>
+                        Ngắt kết nối TikTok
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        connectTikTok();
+                      }}
+                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-[#ff0050] hover:bg-surface-glass transition-colors text-left"
+                    >
+                      <TikTokIcon className="shrink-0" />
+                      Kết nối TikTok
+                    </button>
+                  ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </header>
       </main>
 
