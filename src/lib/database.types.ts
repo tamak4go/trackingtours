@@ -18,6 +18,7 @@ export type Database = {
           route_geojson: { type: "LineString"; coordinates: [number, number][] } | null;
           user_id: string | null;
           is_public: boolean;
+          marker_icon_path: string | null;
           created_at: string;
         };
         Insert: {
@@ -31,6 +32,7 @@ export type Database = {
           route_geojson?: { type: "LineString"; coordinates: [number, number][] } | null;
           user_id?: string | null;
           is_public?: boolean;
+          marker_icon_path?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["trips"]["Insert"]>;

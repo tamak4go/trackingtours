@@ -28,6 +28,11 @@ create index if not exists trips_user_id_idx on trips (user_id);
 -- actually adds the column to an already-deployed database.
 alter table trips add column if not exists user_id uuid references auth.users (id) on delete set null;
 alter table trips add column if not exists is_public boolean not null default true;
+-- Custom moving-marker image for the Play animation (see TripView.tsx's
+-- buildMotoMarkerEl). Null falls back to the owner's Google avatar,
+-- resolved server-side in t/[slug]/page.tsx -- not cached here, so it
+-- always reflects their current avatar without needing a sync job.
+alter table trips add column if not exists marker_icon_path text;
 
 create table if not exists photos (
   id uuid primary key default gen_random_uuid(),

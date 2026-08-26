@@ -20,6 +20,13 @@ export type Trip = {
   photos: TripPhoto[];
   isPublic: boolean;
   createdAt: string;
+  // URL for the moving marker shown during Play (see TripView.tsx's
+  // buildMotoMarkerEl) -- null falls back to the default motorbike icon.
+  // markerIconIsCustom distinguishes an owner-uploaded image from the
+  // owner's-Google-avatar fallback, so the UI only offers "reset to
+  // default" when there's actually something custom to reset.
+  markerIconUrl: string | null;
+  markerIconIsCustom: boolean;
 };
 
 export type CreateTripPhotoInput = {

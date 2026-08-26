@@ -42,11 +42,11 @@ const FALLBACK_MAX_BYTES = 15 * 1024 * 1024;
 // <canvas> in most browsers, so compression throws even though EXIF parsing
 // (a binary read, not a decode) worked fine. In that case fall back to
 // uploading the original bytes rather than dropping the photo.
-export async function compressPhoto(file: File): Promise<Blob> {
+export async function compressPhoto(file: File, opts?: { maxWidthOrHeight?: number; maxSizeMB?: number }): Promise<Blob> {
   try {
     return await imageCompression(file, {
-      maxWidthOrHeight: 1600,
-      maxSizeMB: 0.4,
+      maxWidthOrHeight: opts?.maxWidthOrHeight ?? 1600,
+      maxSizeMB: opts?.maxSizeMB ?? 0.4,
       fileType: "image/webp",
       initialQuality: 0.75,
       useWebWorker: true,

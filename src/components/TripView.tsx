@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Map as MlMap, Marker, NavigationControl, LngLatBounds, type GeoJSONSource } from "maplibre-gl";
 import { MAP_STYLE, ACCENT, ACCENT_GLOW, SECONDARY, SECONDARY_GLOW } from "@/lib/map-style";
+import { compressPhoto } from "@/lib/process-photos";
 import type { Trip, TripPhoto } from "@/lib/types";
 
 const HEAD_TRAIL_POINTS = 40; // how many recent route points form the bright "comet head" behind the moving marker
@@ -104,12 +105,17 @@ function buildStops(routeCoords: [number, number][], photos: TripPhoto[]): Stop[
 // Marker, not rendered by React) -- a badge with the ride icon over a soft
 // pulsing glow (see .moto-marker-glow in the component's <style> block),
 // replacing the old hard-edged animate-ping ring with something that reads
-// more like an engine glow than a sonar ping.
-function buildMotoMarkerEl(): HTMLDivElement {
+// more like an engine glow than a sonar ping. `iconUrl`, when set (a custom
+// upload or the owner's Google avatar -- see t/[slug]/page.tsx), renders as
+// a circular photo badge instead of the default motorbike icon.
+function buildMotoMarkerEl(iconUrl: string | null): HTMLDivElement {
   const el = document.createElement("div");
+  const inner = iconUrl
+    ? `<img src="${iconUrl}" alt="" class="w-full h-full rounded-full object-cover" />`
+    : `<span class="material-symbols-outlined text-primary-container text-xl" style="font-variation-settings:'FILL' 1">two_wheeler</span>`;
   el.innerHTML = `
-    <div class="moto-marker-glow w-10 h-10 bg-surface-container rounded-full flex items-center justify-center border-2 border-primary-container relative">
-      <span class="material-symbols-outlined text-primary-container text-xl" style="font-variation-settings:'FILL' 1">two_wheeler</span>
+    <div class="moto-marker-glow w-10 h-10 bg-surface-container rounded-full flex items-center justify-center border-2 border-primary-container relative overflow-hidden">
+      ${inner}
     </div>
   `;
   return el.firstElementChild as HTMLDivElement;
@@ -159,6 +165,11 @@ export function TripView({
   const photoImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  // Checked at the top of the rAF loop's step() (see playAnimation) --
+  // pausing/resuming just flips this instead of tearing down and rebuilding
+  // the whole animation state machine.
+  const pausedRef = useRef(false);
   const [hasPlayed, setHasPlayed] = useState(false);
   const [recording, setRecording] = useState(false);
   const [progressPct, setProgressPct] = useState(0);
@@ -190,6 +201,14 @@ export function TripView({
   const [photos, setPhotos] = useState<TripPhoto[]>(trip.photos);
   const [isPublic, setIsPublic] = useState(trip.isPublic);
   const [recomputingRoute, setRecomputingRoute] = useState(false);
+  // Moving-marker image shown during Play (see buildMotoMarkerEl) -- starts
+  // as whatever t/[slug]/page.tsx resolved (custom upload, else the owner's
+  // Google avatar, else null for the default icon) and updates immediately
+  // on upload/reset without needing a full page reload.
+  const [markerIconUrl, setMarkerIconUrl] = useState(trip.markerIconUrl);
+  const [markerIconIsCustom, setMarkerIconIsCustom] = useState(trip.markerIconIsCustom);
+  const [uploadingMarkerIcon, setUploadingMarkerIcon] = useState(false);
+  const markerIconInputRef = useRef<HTMLInputElement>(null);
   // MapLibre's sources/layers are only added once the "load" event fires
   // (see the effect below). On a slow connection that can take a while, and
   // tapping Play before then used to crash (map.getSource() returns
@@ -462,13 +481,15 @@ export function TripView({
     stopsRef.current = computedStops;
     setStops(computedStops);
     setIsPlaying(true);
+    pausedRef.current = false;
+    setIsPaused(false);
     setHasPlayed(true);
     setStopCard(null);
     setShowComplete(false);
     setProgressPct(0);
 
     if (movingMarkerRef.current) movingMarkerRef.current.remove();
-    movingMarkerRef.current = new Marker({ element: buildMotoMarkerEl() }).setLngLat(coords[0]).addTo(map);
+    movingMarkerRef.current = new Marker({ element: buildMotoMarkerEl(markerIconUrl) }).setLngLat(coords[0]).addTo(map);
 
     progressSource.setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] }, properties: {} });
     headSource.setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] }, properties: {} });
@@ -496,6 +517,16 @@ export function TripView({
     };
 
     const step = (ts: number) => {
+      // Pausing just freezes the loop here instead of cancelling it -- state
+      // is untouched, and clearing lastTime means the tick right after
+      // resuming computes a normal small dt instead of one covering the
+      // entire paused duration (which would jump the marker forward).
+      if (pausedRef.current) {
+        state.lastTime = null;
+        scheduleNext();
+        return;
+      }
+
       if (state.mode === "stopped") {
         if (ts >= state.resumeAt) {
           state.mode = "travel";
@@ -562,6 +593,21 @@ export function TripView({
       animFrameRef.current = requestAnimationFrame(step);
     }
     return true;
+  }
+
+  // Pause/resume just flip pausedRef -- see the check at the top of step()
+  // above. Only meaningful for the real Play button (driver "raf"); the
+  // server render pipeline never touches these.
+  function pauseAnimation() {
+    if (!isPlaying || pausedRef.current) return;
+    pausedRef.current = true;
+    setIsPaused(true);
+  }
+
+  function resumeAnimation() {
+    if (!isPlaying || !pausedRef.current) return;
+    pausedRef.current = false;
+    setIsPaused(false);
   }
 
   // "Xuất nhanh": records the Play animation as a video Blob by screen/tab
@@ -1039,6 +1085,60 @@ export function TripView({
     }
   }
 
+  // Reads the picked file, downsizes it to a small square-ish avatar (no
+  // need for photo-gallery resolution -- it only ever renders inside a
+  // 40x40px marker badge) and uploads it as the trip's moving-marker image.
+  async function handleMarkerIconFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // lets picking the same file again re-fire onChange
+    if (!file || !canEdit) return;
+    setUploadingMarkerIcon(true);
+    try {
+      const blob = await compressPhoto(file, { maxWidthOrHeight: 256, maxSizeMB: 0.15 });
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+      const res = await fetch(tripApiUrl(`/api/trips/${trip.slug}/marker-icon`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl }),
+      });
+      if (res.ok) {
+        const { url } = (await res.json()) as { url: string };
+        setMarkerIconUrl(url);
+        setMarkerIconIsCustom(true);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Đổi ảnh xe chạy thất bại.");
+      }
+    } catch {
+      alert("Đổi ảnh xe chạy thất bại.");
+    } finally {
+      setUploadingMarkerIcon(false);
+    }
+  }
+
+  async function handleResetMarkerIcon() {
+    if (!canEdit) return;
+    try {
+      const res = await fetch(tripApiUrl(`/api/trips/${trip.slug}/marker-icon`), { method: "DELETE" });
+      if (res.ok) {
+        // The fallback (owner's Google avatar, or null for the default
+        // icon) is resolved server-side in t/[slug]/page.tsx, not sent back
+        // here -- simplest correct way to pick it back up is a reload,
+        // same approach handleRecomputeRoute below already uses.
+        window.location.reload();
+      } else {
+        alert("Đặt lại ảnh mặc định thất bại.");
+      }
+    } catch {
+      alert("Đặt lại ảnh mặc định thất bại.");
+    }
+  }
+
   async function handleRecomputeRoute() {
     if (!canEdit || recomputingRoute) return;
     setRecomputingRoute(true);
@@ -1110,9 +1210,29 @@ export function TripView({
   }
 
   const avgSpeed = trip.durationMs > 0 ? trip.distanceKm / (trip.durationMs / 3600000) : null;
-  const playLabel = !mapReady ? "Đang tải bản đồ..." : isPlaying ? "Đang phát..." : hasPlayed ? "Phát lại" : "Phát animation";
-  const playIcon = !mapReady || isPlaying ? "hourglass_empty" : hasPlayed ? "replay" : "play_arrow";
-  const canPlay = mapReady && !isPlaying && trip.routeCoords.length >= 2;
+  const hasRoute = trip.routeCoords.length >= 2;
+  const canPlay = mapReady && !isPlaying && hasRoute;
+  // Once playing, the same button toggles pause/resume instead of being
+  // disabled -- previously it just showed a spinner for the whole
+  // animation with no way to stop and look at something mid-route.
+  const playLabel = !mapReady
+    ? "Đang tải bản đồ..."
+    : isPlaying
+      ? isPaused
+        ? "Tiếp tục"
+        : "Tạm dừng"
+      : hasPlayed
+        ? "Phát lại"
+        : "Phát animation";
+  const playIcon = !mapReady ? "hourglass_empty" : isPlaying ? (isPaused ? "play_arrow" : "pause") : hasPlayed ? "replay" : "play_arrow";
+  function handlePlayButtonClick() {
+    if (!isPlaying) {
+      playAnimation();
+      return;
+    }
+    if (isPaused) resumeAnimation();
+    else pauseAnimation();
+  }
 
   function renderPhotoItem(p: TripPhoto, i: number) {
     const isActive = lightboxPhoto?.id === p.id || stopCard?.id === p.id;
@@ -1407,8 +1527,8 @@ export function TripView({
 
           <div className="hidden md:flex items-center justify-center gap-2 sm:col-start-2">
             <button
-              onClick={() => playAnimation()}
-              disabled={!canPlay}
+              onClick={handlePlayButtonClick}
+              disabled={!mapReady || !hasRoute}
               className="glow-button text-neutral-950 text-xs font-bold px-6 py-2 rounded-full flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
             >
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -1428,8 +1548,8 @@ export function TripView({
 
           <div className="flex items-center gap-2 overflow-x-auto min-w-0 sm:col-start-3 sm:justify-end">
             <button
-              onClick={() => playAnimation()}
-              disabled={!canPlay}
+              onClick={handlePlayButtonClick}
+              disabled={!mapReady || !hasRoute}
               className="md:hidden glow-button text-neutral-950 w-8 h-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40"
             >
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -1613,6 +1733,36 @@ export function TripView({
                       Kết nối TikTok
                     </button>
                   ))}
+                {canEdit && (
+                  <>
+                    <div className="my-1 border-t border-border-glass" />
+                    <button
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        markerIconInputRef.current?.click();
+                      }}
+                      disabled={uploadingMarkerIcon}
+                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                    >
+                      <span className={`material-symbols-outlined text-lg shrink-0 ${uploadingMarkerIcon ? "animate-spin" : ""}`}>
+                        {uploadingMarkerIcon ? "progress_activity" : "add_a_photo"}
+                      </span>
+                      {uploadingMarkerIcon ? "Đang tải ảnh lên..." : "Đổi ảnh xe chạy"}
+                    </button>
+                    {markerIconIsCustom && (
+                      <button
+                        onClick={() => {
+                          setMoreMenuOpen(false);
+                          handleResetMarkerIcon();
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors text-left"
+                      >
+                        <span className="material-symbols-outlined text-lg shrink-0">restart_alt</span>
+                        Dùng ảnh mặc định
+                      </button>
+                    )}
+                  </>
+                )}
                 {/* Phone-only mirror of the standalone privacy/delete buttons
                     above (hidden here via sm:hidden since those buttons take
                     over again once there's enough width, at sm+) -- keeps
@@ -1647,6 +1797,15 @@ export function TripView({
             )}
           </AnimatePresence>
         </header>
+        )}
+        {canEdit && (
+          <input
+            ref={markerIconInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleMarkerIconFileChange}
+          />
         )}
       </main>
 

@@ -22,11 +22,26 @@ const getTrip = cache(
 
     const { data: trip } = await admin
       .from("trips")
-      .select("id, slug, title, distance_km, duration_ms, route_mode, route_geojson, user_id, is_public, edit_token_hash, created_at")
+      .select(
+        "id, slug, title, distance_km, duration_ms, route_mode, route_geojson, user_id, is_public, marker_icon_path, edit_token_hash, created_at",
+      )
       .eq("slug", slug)
       .single();
 
     if (!trip) return null;
+
+    // Custom upload takes priority; otherwise fall back to the owner's
+    // current Google avatar (not persisted -- always fresh) if they're
+    // signed in via one; otherwise null, and the marker renders the default
+    // motorbike icon (see TripView.tsx's buildMotoMarkerEl).
+    let markerIconUrl: string | null = null;
+    const markerIconIsCustom = !!trip.marker_icon_path;
+    if (trip.marker_icon_path) {
+      markerIconUrl = admin.storage.from("trip-photos").getPublicUrl(trip.marker_icon_path).data.publicUrl;
+    } else if (trip.user_id) {
+      const { data: ownerData } = await admin.auth.admin.getUserById(trip.user_id);
+      markerIconUrl = (ownerData.user?.user_metadata?.avatar_url as string | undefined) ?? null;
+    }
 
     const { data: photoRows } = await admin
       .from("photos")
@@ -55,6 +70,8 @@ const getTrip = cache(
         photos,
         isPublic: trip.is_public,
         createdAt: trip.created_at,
+        markerIconUrl,
+        markerIconIsCustom,
       },
       ownerUserId: trip.user_id,
       editTokenHash: trip.edit_token_hash,
