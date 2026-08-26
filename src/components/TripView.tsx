@@ -1383,8 +1383,15 @@ export function TripView({
         )}
 
         {!renderMode && (
-        <header className="absolute top-4 left-4 right-4 lg:right-[336px] z-30 glass rounded-full px-4 sm:px-6 py-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 transition-all">
-          <div className="flex items-center gap-1.5 min-w-0">
+        <header className="absolute top-4 left-4 right-4 lg:right-[336px] z-30 glass rounded-3xl sm:rounded-full px-4 sm:px-6 py-3 flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center sm:gap-2 transition-all">
+          {/* Below `sm` this stacks as its own row instead of sharing a CSS Grid
+              row with the controls below -- grid auto-placement skips items
+              hidden via `display:none` entirely, so with the desktop play/more
+              cluster hidden on phones, the controls row used to get shoved into
+              this title's column and crush it down to a sliver. The explicit
+              `sm:col-start-*` pins below make the sm+ grid immune to the same
+              bug regardless of which column's content happens to be hidden. */}
+          <div className="flex items-center gap-1.5 min-w-0 sm:col-start-1">
             <span className="material-symbols-outlined text-primary-container text-2xl shrink-0">two_wheeler</span>
             <h1 className="text-sm sm:text-base font-bold tracking-tight truncate">{title || "Chuyến đi phượt"}</h1>
             {canEdit && (
@@ -1398,7 +1405,7 @@ export function TripView({
             )}
           </div>
 
-          <div className="hidden md:flex items-center justify-center gap-2">
+          <div className="hidden md:flex items-center justify-center gap-2 sm:col-start-2">
             <button
               onClick={() => playAnimation()}
               disabled={!canPlay}
@@ -1419,7 +1426,7 @@ export function TripView({
             </button>
           </div>
 
-          <div className="flex items-center justify-end gap-2 overflow-x-auto min-w-0">
+          <div className="flex items-center gap-2 overflow-x-auto min-w-0 sm:col-start-3 sm:justify-end">
             <button
               onClick={() => playAnimation()}
               disabled={!canPlay}
@@ -1484,11 +1491,15 @@ export function TripView({
               </div>
             </div>
 
+            {/* hidden below sm: on phones these move into the "..." menu instead
+                (see the moreMenuOpen panel) -- five separate icon buttons plus
+                the stats pill packed into one row left no room for the trip
+                title, which is why it used to disappear entirely on mobile. */}
             {canEdit && (
               <button
                 onClick={handleTogglePrivacy}
                 title={isPublic ? "Đang công khai -- bấm để đặt riêng tư" : "Đang riêng tư -- bấm để công khai"}
-                className="flex items-center gap-1 text-on-surface-variant hover:text-on-surface transition-colors bg-surface-glass px-3 py-1.5 rounded-full shrink-0 text-xs"
+                className="hidden sm:flex items-center gap-1 text-on-surface-variant hover:text-on-surface transition-colors bg-surface-glass px-3 py-1.5 rounded-full shrink-0 text-xs"
               >
                 <span className="material-symbols-outlined text-sm">{isPublic ? "lock_open" : "lock"}</span>
                 <span className="hidden md:inline">{isPublic ? "Công khai" : "Riêng tư"}</span>
@@ -1499,7 +1510,7 @@ export function TripView({
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="flex items-center gap-1 text-error hover:text-error-container transition-colors bg-surface-glass px-3 py-1.5 rounded-full ml-1 shrink-0 text-xs"
+                className="hidden sm:flex items-center gap-1 text-error hover:text-error-container transition-colors bg-surface-glass px-3 py-1.5 rounded-full ml-1 shrink-0 text-xs"
               >
                 <span className="material-symbols-outlined text-sm">delete</span>
                 <span className="hidden md:inline">{deleting ? "Đang xoá..." : "Xoá"}</span>
@@ -1602,6 +1613,36 @@ export function TripView({
                       Kết nối TikTok
                     </button>
                   ))}
+                {/* Phone-only mirror of the standalone privacy/delete buttons
+                    above (hidden here via sm:hidden since those buttons take
+                    over again once there's enough width, at sm+) -- keeps
+                    them reachable without crowding the header row. */}
+                {canEdit && (
+                  <div className="sm:hidden">
+                    <div className="my-1 border-t border-border-glass" />
+                    <button
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        handleTogglePrivacy();
+                      }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors text-left"
+                    >
+                      <span className="material-symbols-outlined text-lg shrink-0">{isPublic ? "lock_open" : "lock"}</span>
+                      {isPublic ? "Đang công khai -- đặt riêng tư" : "Đang riêng tư -- đặt công khai"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        handleDelete();
+                      }}
+                      disabled={deleting}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-error hover:text-error-container hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                    >
+                      <span className="material-symbols-outlined text-lg shrink-0">delete</span>
+                      {deleting ? "Đang xoá..." : "Xoá chuyến đi"}
+                    </button>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
