@@ -29,7 +29,7 @@ export function JourneyCard({
   return (
     <a
       href={href}
-      className="group relative flex h-52 sm:h-72 lg:h-80 flex-col overflow-hidden rounded-3xl border border-transparent bg-white/[0.03] transition-colors hover:border-primary/40"
+      className="group relative flex h-60 sm:h-72 lg:h-80 flex-col overflow-hidden rounded-3xl border border-transparent bg-white/[0.03] transition-colors hover:border-primary/40"
     >
       {trip.photoUrl ? (
         <img
@@ -47,17 +47,17 @@ export function JourneyCard({
       {monogram && (
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-2 -top-3 hidden select-none text-[100px] font-black leading-none lg:block"
-          style={{ WebkitTextStroke: "1px rgba(255,255,255,0.14)", WebkitTextFillColor: "transparent" }}
+          className="pointer-events-none absolute -right-3 bottom-1 select-none text-[90px] font-black leading-[0.75] sm:text-[110px] lg:text-[130px]"
+          style={{ WebkitTextStroke: "1px rgba(255,255,255,0.16)", WebkitTextFillColor: "transparent" }}
         >
           {monogram}
         </div>
       )}
 
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-transparent" />
 
-      <div className="pill absolute left-3 top-3 gap-1 text-[11px] font-medium text-white/90">
-        <Images size={13} />
+      <div className="pill absolute left-3 top-3 gap-1 text-xs font-medium text-white/90">
+        <Images size={14} />
         {trip.photoCount}
       </div>
 
@@ -86,8 +86,8 @@ export function JourneyCard({
       )}
 
       <div className="relative mt-auto flex flex-col gap-1.5 p-4 sm:p-5">
-        <h3 className="truncate text-lg font-extrabold tracking-tight text-white drop-shadow-sm sm:text-xl">{title}</h3>
-        <div className="flex items-center gap-3 text-xs text-white/60">
+        <h3 className="truncate text-2xl font-extrabold tracking-tight text-white drop-shadow-sm sm:text-3xl">{title}</h3>
+        <div className="flex items-center gap-3 text-xs text-white/70">
           <span>{fmtDate(trip.createdAt)}</span>
           <span className="flex items-center gap-1">
             <Route size={12} className="text-accent" />
