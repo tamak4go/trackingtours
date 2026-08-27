@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import NextImage from "next/image";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Map as MlMap, Marker, NavigationControl, LngLatBounds, type GeoJSONSource } from "maplibre-gl";
@@ -1263,22 +1264,20 @@ export function TripView({
         <div className="shrink-0 w-6 flex flex-col items-center">
           <div
             className="w-6 h-6 rounded-full bg-gradient-to-br from-primary-container to-gradient-pink text-on-primary-container flex items-center justify-center text-[10px] font-bold"
-            style={isActive ? { boxShadow: "0 0 10px rgba(255,122,69,0.5)" } : undefined}
+            style={isActive ? { boxShadow: "0 0 10px rgba(var(--accent-rgb), 0.5)" } : undefined}
           >
             {i + 1}
           </div>
           {i < photos.length - 1 && <div className="w-px flex-1 bg-border-glass mt-1" />}
         </div>
         <div className="flex-1 min-w-0 pb-2">
-          <img
-            src={p.url}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className={`w-full h-24 object-cover rounded-lg border transition-colors ${
+          <div
+            className={`relative h-24 w-full overflow-hidden rounded-lg border transition-colors ${
               isActive ? "border-primary-container" : "border-border-glass group-hover:border-primary-container/50"
             }`}
-          />
+          >
+            <NextImage src={p.url} alt="" fill sizes="320px" className="object-cover" />
+          </div>
           <div className="mt-1.5 flex justify-between items-center">
             <span className={`text-xs ${isActive ? "text-primary" : "text-on-surface-variant"}`}>{fmtTime(p.takenAt)}</span>
             {canEdit && (
@@ -1319,8 +1318,8 @@ export function TripView({
         .trip-stop-marker:hover { transform: scale(1.3); }
 
         @keyframes moto-glow-pulse {
-          0%, 100% { box-shadow: 0 0 14px 2px rgba(255,122,69,0.75); }
-          50% { box-shadow: 0 0 26px 8px rgba(255,122,69,0.9); }
+          0%, 100% { box-shadow: 0 0 14px 2px rgba(var(--accent-rgb), 0.75); }
+          50% { box-shadow: 0 0 26px 8px rgba(var(--accent-rgb), 0.9); }
         }
         .moto-marker-glow { animation: moto-glow-pulse 1.4s ease-in-out infinite; }
 
@@ -1380,8 +1379,8 @@ export function TripView({
             <div className={`absolute left-4 right-4 z-10 ${recording ? "top-32" : "top-20"}`}>
               <div className="h-1 bg-white/15 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-primary-container to-gradient-pink transition-all duration-150"
-                  style={{ width: `${progressPct}%` }}
+                  className="h-full w-full origin-left bg-gradient-to-r from-primary-container to-gradient-pink transition-transform duration-150"
+                  style={{ transform: `scaleX(${progressPct / 100})` }}
                 />
               </div>
               {/* Chapter dots: one per photo, marking where along the route it was

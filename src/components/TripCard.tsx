@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Route, Lock, Trash2 } from "lucide-react";
 
 export type TripCardData = {
@@ -28,11 +29,12 @@ export function TripCard({ trip, href, onRemove }: { trip: TripCardData; href: s
     >
       <div className="h-32 bg-white/[0.04] relative overflow-hidden shrink-0">
         {trip.photoUrl ? (
-          <img
+          <Image
             src={trip.photoUrl}
             alt=""
-            loading="lazy"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            fill
+            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            className="object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -65,7 +67,7 @@ export function TripCard({ trip, href, onRemove }: { trip: TripCardData; href: s
         <span className="text-sm font-semibold text-white/90 truncate">
           {trip.title || `${trip.distanceKm.toFixed(1)} km · ${trip.photoCount} ảnh`}
         </span>
-        <div className="flex items-center justify-between text-[11px] text-white/40 pt-2 border-t border-white/10">
+        <div className="flex items-center justify-between text-[11px] text-muted pt-2 border-t border-white/10">
           <span>{fmtDate(trip.createdAt)}</span>
           <span className="flex items-center gap-1">
             <Route size={12} />

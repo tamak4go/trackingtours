@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Settings as SettingsIcon, Lock, LogOut, Trash2 } from "lucide-react";
 import { useAuthUser } from "@/lib/use-auth-user";
 import { useMyTrips, clearMyTrips } from "@/lib/my-trips";
@@ -32,15 +33,21 @@ export default function SettingsPage() {
         </div>
 
         {!loaded ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
         ) : (
           <div className="flex flex-col gap-4">
             <section className="glass rounded-2xl p-5">
-              <div className="text-[11px] text-white/35 uppercase tracking-wider mb-3">Tài khoản</div>
+              <h2 className="text-[11px] text-muted uppercase tracking-wider mb-3 font-semibold">Tài khoản</h2>
               {user ? (
                 <div className="flex items-center gap-4">
                   {user.user_metadata?.avatar_url ? (
-                    <img src={user.user_metadata.avatar_url} alt="" className="w-12 h-12 rounded-full border border-white/10" />
+                    <Image
+                      src={user.user_metadata.avatar_url}
+                      alt=""
+                      width={48}
+                      height={48}
+                      className="w-12 h-12 rounded-full border border-white/10"
+                    />
                   ) : (
                     <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center text-lg font-bold text-accent">
                       {(displayName || user.email || "?")[0]?.toUpperCase()}
@@ -48,7 +55,7 @@ export default function SettingsPage() {
                   )}
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-white/90 truncate">{displayName || "Rider"}</div>
-                    <div className="text-xs text-white/40 truncate">{user.email}</div>
+                    <div className="text-xs text-muted truncate">{user.email}</div>
                   </div>
                   <button
                     onClick={() => supabaseBrowser().auth.signOut()}
@@ -67,7 +74,7 @@ export default function SettingsPage() {
             </section>
 
             <section className="glass rounded-2xl p-5">
-              <div className="text-[11px] text-white/35 uppercase tracking-wider mb-3">Mặc định khi tạo chuyến đi mới</div>
+              <h2 className="text-[11px] text-muted uppercase tracking-wider mb-3 font-semibold">Mặc định khi tạo chuyến đi mới</h2>
               <button
                 onClick={toggleDefaultPrivate}
                 role="switch"
@@ -81,7 +88,7 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <div className="text-sm font-medium text-white/85">Tạo chuyến đi ở chế độ riêng tư</div>
-                    <div className="text-xs text-white/40">Có thể đổi lại cho từng chuyến đi khi tạo</div>
+                    <div className="text-xs text-muted">Có thể đổi lại cho từng chuyến đi khi tạo</div>
                   </div>
                 </div>
                 <span
@@ -104,7 +111,7 @@ export default function SettingsPage() {
 
             {!user && localTrips.length > 0 && (
               <section className="glass rounded-2xl p-5">
-                <div className="text-[11px] text-white/35 uppercase tracking-wider mb-3">Dữ liệu cục bộ</div>
+                <h2 className="text-[11px] text-muted uppercase tracking-wider mb-3 font-semibold">Dữ liệu cục bộ</h2>
                 <button
                   onClick={clearLocalTrips}
                   className="flex items-center gap-3 text-sm text-red-400/80 hover:text-red-400 transition-colors"

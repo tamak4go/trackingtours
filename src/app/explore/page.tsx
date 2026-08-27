@@ -36,7 +36,7 @@ export default function ExplorePage() {
           <Compass size={22} className="text-accent-2" />
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white/95">Explore</h1>
         </div>
-        <p className="text-white/40 text-sm mb-8">Chuyến đi công khai từ mọi rider trên Tracking Phượt.</p>
+        <p className="text-muted text-sm mb-8">Chuyến đi công khai từ mọi rider trên Tracking Phượt.</p>
 
         <div className="flex gap-2 mb-6">
           {(
@@ -60,9 +60,9 @@ export default function ExplorePage() {
         </div>
 
         {trips === null ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
         ) : trips.length === 0 ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">
             Chưa có chuyến đi công khai nào. Hãy là người đầu tiên chia sẻ!
           </div>
         ) : (

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { LogOut } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useAuthUser } from "@/lib/use-auth-user";
@@ -38,7 +39,13 @@ export function AuthButton() {
   return (
     <div className="flex items-center gap-2">
       {user.user_metadata?.avatar_url ? (
-        <img src={user.user_metadata.avatar_url} alt="" className="w-9 h-9 rounded-full border border-white/10" />
+        <Image
+          src={user.user_metadata.avatar_url}
+          alt=""
+          width={36}
+          height={36}
+          className="w-9 h-9 rounded-full border border-white/10"
+        />
       ) : (
         <div className="w-9 h-9 rounded-full bg-accent/20 flex items-center justify-center text-sm font-bold text-accent">
           {(user.user_metadata?.full_name || user.email || "?")[0]?.toUpperCase()}
@@ -47,7 +54,7 @@ export function AuthButton() {
       <button
         onClick={signOut}
         title="Đăng xuất"
-        className="p-2.5 -m-2.5 text-white/40 hover:text-red-400 transition-colors"
+        className="p-2.5 -m-2.5 text-muted hover:text-red-400 transition-colors"
       >
         <LogOut size={16} />
       </button>

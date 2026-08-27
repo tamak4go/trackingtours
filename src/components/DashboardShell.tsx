@@ -79,7 +79,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
         <div className="flex items-center gap-3">
           <Link
             href="/upload"
-            className="hidden lg:flex items-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-[0_10px_30px_rgba(255,122,69,0.3)] hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy"
+            className="hidden lg:flex items-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-glow-accent hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy"
           >
             Start Ride
           </Link>
@@ -125,7 +125,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <div className="text-base font-bold text-primary">{displayName ? "Rider Profile" : "Khách"}</div>
-                  <div className="text-xs text-white/40 truncate max-w-[180px]">
+                  <div className="text-xs text-muted truncate max-w-[180px]">
                     {displayName || "Đăng nhập để lưu chuyến đi"}
                   </div>
                 </div>
@@ -140,7 +140,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
               <Link
                 href="/upload"
                 onClick={() => setMobileNavOpen(false)}
-                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold py-2.5 rounded-full shadow-[0_10px_30px_rgba(255,122,69,0.3)] active:scale-[0.97] transition-all duration-150 ease-snappy mb-4"
+                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold py-2.5 rounded-full shadow-glow-accent active:scale-[0.97] transition-all duration-150 ease-snappy mb-4"
               >
                 Start Ride
               </Link>
@@ -205,7 +205,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
       <aside className="hidden lg:flex flex-col w-64 fixed right-0 top-[65px] bottom-0 py-8 px-6 bg-white/[0.02] backdrop-blur-2xl border-l border-white/[0.06] z-30">
         <div className="mb-8">
           <div className="text-lg font-bold text-primary mb-1">{displayName ? "Rider Profile" : "Khách"}</div>
-          <div className="text-sm text-white/40 truncate">{displayName || "Đăng nhập để lưu chuyến đi vào tài khoản"}</div>
+          <div className="text-sm text-muted truncate">{displayName || "Đăng nhập để lưu chuyến đi vào tài khoản"}</div>
         </div>
         <nav className="flex-1 space-y-1">
           {SIDE_LINKS.map((link) => (
@@ -215,7 +215,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
               className={
                 active === link.key || (link.key === "dashboard" && active === "home")
                   ? "flex items-center gap-3 text-accent-2 font-semibold border-r-4 border-accent-2 pr-4 py-2"
-                  : "flex items-center gap-3 text-white/40 hover:bg-white/[0.05] transition-colors py-2 px-2 rounded-lg"
+                  : "flex items-center gap-3 text-muted hover:bg-white/[0.05] transition-colors py-2 px-2 rounded-lg"
               }
             >
               <link.icon size={18} />
@@ -237,7 +237,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
               className={
                 active === "help"
                   ? "flex items-center gap-3 text-accent-2 font-semibold transition-colors text-sm"
-                  : "flex items-center gap-3 text-white/40 hover:text-primary transition-colors text-sm"
+                  : "flex items-center gap-3 text-muted hover:text-primary transition-colors text-sm"
               }
             >
               <HelpCircle size={16} />

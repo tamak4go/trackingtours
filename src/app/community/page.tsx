@@ -43,7 +43,7 @@ export default function CommunityPage() {
           <Users size={22} className="text-accent-2" />
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white/95">Community</h1>
         </div>
-        <p className="text-white/40 text-sm mb-8">Những chuyến đi mới nhất được chia sẻ công khai bởi cộng đồng.</p>
+        <p className="text-muted text-sm mb-8">Những chuyến đi mới nhất được chia sẻ công khai bởi cộng đồng.</p>
 
         <div className="grid grid-cols-3 gap-3 mb-8">
           <StatTile icon={Route} label="Chuyến đi công khai" value={totalPublicTrips === null ? "—" : totalPublicTrips.toString()} />
@@ -52,9 +52,9 @@ export default function CommunityPage() {
         </div>
 
         {trips === null ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
         ) : trips.length === 0 ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">
             Cộng đồng chưa có chuyến đi công khai nào. Hãy là người đầu tiên!
           </div>
         ) : (
@@ -81,7 +81,7 @@ function StatTile({ icon: Icon, label, value }: { icon: typeof Route; label: str
     <div className="glass rounded-2xl p-4 flex flex-col gap-2">
       <Icon size={16} className="text-accent" />
       <span className="text-xl font-bold text-white/90">{value}</span>
-      <span className="text-[11px] text-white/40">{label}</span>
+      <span className="text-[11px] text-muted">{label}</span>
     </div>
   );
 }

@@ -65,13 +65,13 @@ export default function JourneysPage() {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white/95">My Journeys</h1>
-            <p className="text-white/40 text-sm mt-1">
+            <p className="text-muted text-sm mt-1">
               {user ? "Toàn bộ chuyến đi đã lưu vào tài khoản của bạn." : "Chuyến đi lưu trên trình duyệt này."}
             </p>
           </div>
           <Link
             href="/upload"
-            className="inline-flex items-center gap-1.5 self-start sm:self-auto bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-[0_10px_30px_rgba(255,122,69,0.3)] hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy"
+            className="inline-flex items-center gap-1.5 self-start sm:self-auto bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-glow-accent hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy"
           >
             <Plus size={16} />
             Chuyến đi mới
@@ -80,12 +80,12 @@ export default function JourneysPage() {
 
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Tìm theo tên chuyến đi..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-full bg-white/[0.04] border border-white/10 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-accent/50 transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 rounded-full bg-white/[0.04] border border-white/10 text-sm text-white/90 placeholder:text-muted focus:outline-none focus:border-accent/50 transition-colors"
             />
           </div>
           <div className="flex gap-2">
@@ -112,9 +112,9 @@ export default function JourneysPage() {
         </div>
 
         {!loaded || trips === null ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
         ) : trips.length === 0 ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">
             {query ? "Không tìm thấy chuyến đi nào khớp." : 'Chưa có chuyến đi nào. Bấm "Chuyến đi mới" để bắt đầu.'}
           </div>
         ) : (

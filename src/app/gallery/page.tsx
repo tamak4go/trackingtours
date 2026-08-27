@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { GalleryHorizontal, X } from "lucide-react";
@@ -53,16 +54,16 @@ export default function GalleryPage() {
           <GalleryHorizontal size={22} className="text-accent-2" />
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white/95">Gallery</h1>
         </div>
-        <p className="text-white/40 text-sm mb-8">Toàn bộ ảnh từ các chuyến đi đã lưu vào tài khoản của bạn.</p>
+        <p className="text-muted text-sm mb-8">Toàn bộ ảnh từ các chuyến đi đã lưu vào tài khoản của bạn.</p>
 
         {!loaded ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
         ) : !user ? (
           <SignInPrompt reason="Gallery tổng hợp ảnh từ mọi chuyến đi trong tài khoản của bạn." />
         ) : photos === null ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
         ) : photos.length === 0 ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">
             Chưa có ảnh nào. Tạo chuyến đi đầu tiên để bắt đầu Gallery.
           </div>
         ) : (
@@ -73,11 +74,12 @@ export default function GalleryPage() {
                 onClick={() => setActive(p)}
                 className="group relative aspect-square rounded-xl overflow-hidden bg-white/[0.04]"
               >
-                <img
+                <Image
                   src={p.url}
                   alt=""
-                  loading="lazy"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  fill
+                  sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                  className="object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </button>
             ))}

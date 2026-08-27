@@ -34,14 +34,14 @@ export default function HelpPage() {
           <HelpCircle size={22} className="text-accent-2" />
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white/95">Help</h1>
         </div>
-        <p className="text-white/40 text-sm mb-8">Câu hỏi thường gặp về Tracking Phượt.</p>
+        <p className="text-muted text-sm mb-8">Câu hỏi thường gặp về Tracking Phượt.</p>
 
         <div className="flex flex-col gap-3 mb-8">
           {FAQS.map((item) => (
             <details key={item.q} className="glass rounded-2xl p-4 group">
               <summary className="text-sm font-semibold text-white/85 cursor-pointer list-none flex items-center justify-between">
                 {item.q}
-                <span className="text-white/30 group-open:rotate-45 transition-transform text-lg leading-none">+</span>
+                <span className="text-muted group-open:rotate-45 transition-transform text-lg leading-none">+</span>
               </summary>
               <p className="text-sm text-white/50 mt-3 leading-relaxed">{item.a}</p>
             </details>

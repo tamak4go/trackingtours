@@ -38,7 +38,16 @@ export const MAP_STYLE: StyleSpecification = {
   layers: [{ id: "satellite-layer", type: "raster", source: "satellite" }],
 };
 
+// MapLibre paint properties need a literal color string (they can't read a
+// CSS custom property), so the glow variants derive from the hex constants
+// below instead of retyping the RGB triplet -- keeps this file self-
+// consistent even though it can't share --accent-rgb from globals.css.
+function hexToRgba(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
 export const ACCENT = "#ff7a45";
-export const ACCENT_GLOW = "rgba(255, 122, 69, 0.6)";
+export const ACCENT_GLOW = hexToRgba(ACCENT, 0.6);
 export const SECONDARY = "#75d1ff";
-export const SECONDARY_GLOW = "rgba(79, 195, 247, 0.4)";
+export const SECONDARY_GLOW = hexToRgba(SECONDARY, 0.4);

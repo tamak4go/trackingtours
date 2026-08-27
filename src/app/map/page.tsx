@@ -108,16 +108,16 @@ export default function MapViewPage() {
           <MapIcon size={22} className="text-accent-2" />
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white/95">Map View</h1>
         </div>
-        <p className="text-white/40 text-sm mb-6">Toàn bộ lộ trình đã lưu vào tài khoản, trên một bản đồ.</p>
+        <p className="text-muted text-sm mb-6">Toàn bộ lộ trình đã lưu vào tài khoản, trên một bản đồ.</p>
 
         {!loaded ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
         ) : !user ? (
           <SignInPrompt reason="Map View gộp lộ trình mọi chuyến đi trong tài khoản của bạn lên một bản đồ." />
         ) : trips === null ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
         ) : trips.length === 0 ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">
             Chưa có chuyến đi nào có lộ trình để hiển thị.
           </div>
         ) : (

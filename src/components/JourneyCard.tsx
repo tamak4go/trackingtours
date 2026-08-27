@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Images, Lock, Route, Trash2 } from "lucide-react";
 import type { TripCardData } from "@/components/TripCard";
 
@@ -32,11 +33,12 @@ export function JourneyCard({
       className="group relative flex h-60 sm:h-72 lg:h-80 flex-col overflow-hidden rounded-3xl border border-transparent bg-white/[0.03] transition-colors hover:border-primary/40"
     >
       {trip.photoUrl ? (
-        <img
+        <Image
           src={trip.photoUrl}
           alt=""
-          loading="lazy"
-          className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+          fill
+          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+          className="object-cover transition-transform duration-700 group-hover:scale-105"
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-white/[0.04]">

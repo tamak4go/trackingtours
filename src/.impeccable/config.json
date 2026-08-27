@@ -20,6 +20,15 @@
         ],
         "createdAt": "2026-08-27T12:02:16.193Z",
         "reason": "design-brief-stitch.md specifies coral->pink gradient on H1 'Phượt' wordmark and hero headings; intentional brand choice, pre-existing before this session's edits"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "app/src/components/DashboardShell.tsx"
+        ],
+        "createdAt": "2026-08-27T12:30:25.689Z",
+        "reason": "border-r-4 here is the active-state indicator for the current sidebar nav item (right rail), not a decorative card accent; verified in context during /impeccable audit"
       }
     ]
   }

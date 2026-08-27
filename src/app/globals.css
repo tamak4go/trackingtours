@@ -11,6 +11,11 @@
   --foreground: #f1f4f8;
   --accent: #ff7a45;
   --accent-2: #4fc3f7;
+  /* RGB triplet twin of --accent, for rgba() composition in glow/shadow
+     effects (CSS's rgba() can't take a hex custom property directly). Every
+     coral glow effect in the app should derive its color from this single
+     place instead of retyping "255, 122, 69". */
+  --accent-rgb: 255, 122, 69;
 }
 
 /* Material Design 3 tonal palette, used by the trip share ("Journey Share
@@ -23,6 +28,13 @@
   --color-foreground: var(--foreground);
   --color-accent: var(--accent);
   --color-accent-2: var(--accent-2);
+  /* Quietest text color that still clears WCAG AA (4.5:1) against
+     --background (#08090d): measured ~5.9:1 at this opacity. The ad-hoc
+     text-white/15 through /40 tiers previously used for captions, empty
+     states, and helper text all measured 2.2-3.8:1 -- this is their
+     replacement floor. text-white/50 and above already clear AA on their
+     own and are unaffected. */
+  --color-muted: rgba(255, 255, 255, 0.58);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
@@ -34,6 +46,12 @@
   --ease-snappy: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-glide: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* The CTA button glow, used identically on every primary/gradient button
+     across the app (Start Ride, Chuyến đi mới, .glow-button). Was retyped
+     as a literal rgba(255,122,69,0.3) shadow at 4 separate call sites;
+     derives from --accent-rgb so the color can never drift out of sync. */
+  --shadow-glow-accent: 0 10px 30px rgba(var(--accent-rgb), 0.3);
 
   --color-primary: #ffb59a;
   --color-on-primary: #5b1b00;
@@ -69,7 +87,7 @@
   --color-outline-variant: #58423a;
   --color-border-glass: rgba(255, 255, 255, 0.1);
   --color-surface-glass: rgba(255, 255, 255, 0.04);
-  --color-bg-blob-coral: rgba(255, 122, 69, 0.16);
+  --color-bg-blob-coral: rgba(var(--accent-rgb), 0.16);
   --color-bg-blob-cyan: rgba(79, 195, 247, 0.16);
 }
 
@@ -142,7 +160,7 @@ body {
 
 .glow-button {
   background: linear-gradient(135deg, var(--color-primary-container), var(--color-gradient-pink));
-  box-shadow: 0 10px 30px rgba(255, 122, 69, 0.3);
+  box-shadow: var(--shadow-glow-accent);
   transition:
     transform 160ms var(--ease-snappy),
     box-shadow 160ms var(--ease-snappy);
@@ -168,7 +186,7 @@ body {
   stroke-width: 4;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 8px rgba(255, 122, 69, 0.6));
+  filter: drop-shadow(0 0 8px rgba(var(--accent-rgb), 0.6));
 }
 
 .route-line-dashed {

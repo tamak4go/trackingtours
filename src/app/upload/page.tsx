@@ -374,23 +374,23 @@ export default function UploadPage() {
                       <>
                         <CheckCircle2 size={40} className="text-accent-2 mb-2" />
                         <span className="text-lg font-semibold">Đã chọn {selectedFiles.length} tệp</span>
-                        <span className="text-xs text-white/40">Nhấp để chọn lại</span>
+                        <span className="text-xs text-muted">Nhấp để chọn lại</span>
                       </>
                     ) : (
                       <>
-                        <UploadCloud size={40} className="text-white/40 mb-2" />
+                        <UploadCloud size={40} className="text-muted mb-2" />
                         <span className="text-lg font-semibold">Kéo &amp; thả ảnh vào đây</span>
-                        <span className="text-xs text-white/40">hoặc nhấp để chọn tệp (JPG, PNG, HEIC)</span>
+                        <span className="text-xs text-muted">hoặc nhấp để chọn tệp (JPG, PNG, HEIC)</span>
                       </>
                     )}
                   </div>
 
                   <div className="flex items-center gap-2 justify-center mt-3">
-                    <button onClick={pickFolder} className="text-[11px] text-white/40 hover:text-accent-2 active:scale-95 transition-all duration-150 ease-snappy flex items-center gap-1">
+                    <button onClick={pickFolder} className="text-[11px] text-muted hover:text-accent-2 active:scale-95 transition-all duration-150 ease-snappy flex items-center gap-1">
                       <FolderUp size={12} /> Cả thư mục
                     </button>
-                    <span className="text-white/20">·</span>
-                    <button onClick={pickZip} className="text-[11px] text-white/40 hover:text-accent-2 active:scale-95 transition-all duration-150 ease-snappy flex items-center gap-1">
+                    <span className="text-muted">·</span>
+                    <button onClick={pickZip} className="text-[11px] text-muted hover:text-accent-2 active:scale-95 transition-all duration-150 ease-snappy flex items-center gap-1">
                       <FileArchive size={12} /> Google Takeout
                     </button>
                   </div>
@@ -442,7 +442,7 @@ export default function UploadPage() {
                       <Rocket size={18} />
                       Bắt đầu xử lý
                     </button>
-                    <p className="flex items-start gap-1.5 text-[11px] text-white/30 leading-relaxed">
+                    <p className="flex items-start gap-1.5 text-[11px] text-muted leading-relaxed">
                       <Info size={13} className="shrink-0 mt-0.5" />
                       Chỉ ảnh có GPS mới dùng được. Ảnh HEIC (iPhone) đọc được vị trí bình thường; nếu trình duyệt không nén được
                       ảnh gốc, app sẽ tự tải lên bản gốc thay vì bỏ qua.
@@ -463,12 +463,12 @@ export default function UploadPage() {
                   <div className="text-sm text-white/70 mb-4">{statusMsg}</div>
                   <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                     <motion.div
-                      className="h-full bg-gradient-to-r from-accent to-gradient-pink rounded-full"
-                      animate={{ width: `${progressPct}%` }}
+                      className="h-full w-full origin-left bg-gradient-to-r from-accent to-gradient-pink rounded-full"
+                      animate={{ scaleX: progressPct / 100 }}
                       transition={{ duration: 0.25 }}
                     />
                   </div>
-                  <div className="text-xs text-white/35 mt-2 tabular-nums">
+                  <div className="text-xs text-muted mt-2 tabular-nums">
                     {progress.done}/{progress.total}
                   </div>
                 </motion.div>
@@ -506,13 +506,13 @@ export default function UploadPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={reset}
-                      className="flex-1 py-2 rounded-xl text-sm text-white/40 hover:text-white/70 transition-colors"
+                      className="flex-1 py-2 rounded-xl text-sm text-muted hover:text-white/70 transition-colors"
                     >
                       Tạo chuyến đi khác
                     </button>
                     <Link
                       href="/"
-                      className="flex-1 py-2 rounded-xl text-sm text-center text-white/40 hover:text-white/70 transition-colors"
+                      className="flex-1 py-2 rounded-xl text-sm text-center text-muted hover:text-white/70 transition-colors"
                     >
                       Về trang chủ
                     </Link>
@@ -536,7 +536,7 @@ export default function UploadPage() {
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-white/85 mb-1">{s.title}</div>
-                    <div className="text-xs text-white/40">{s.body}</div>
+                    <div className="text-xs text-muted">{s.body}</div>
                   </div>
                 </div>
               ))}

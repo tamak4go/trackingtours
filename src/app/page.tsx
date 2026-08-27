@@ -76,9 +76,9 @@ export default function Home() {
 
       <div className="w-full max-w-5xl">
         <div className="flex items-center justify-between mb-4 px-1">
-          <div className="text-[11px] text-white/35 font-medium uppercase tracking-wider">
+          <h2 className="text-[11px] text-muted font-medium uppercase tracking-wider">
             Hành trình gần đây {user ? "(theo tài khoản Google)" : "(lưu trên trình duyệt này)"}
-          </div>
+          </h2>
           {showTrips && (
             <Link href="/journeys" className="text-[11px] text-accent-2 font-medium hover:text-accent transition-colors">
               Xem tất cả
@@ -110,7 +110,7 @@ export default function Home() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.15 }}
-            className="text-center text-white/30 text-sm py-10 glass rounded-2xl"
+            className="text-center text-muted text-sm py-10 glass rounded-2xl"
           >
             Chưa có chuyến đi nào. Bấm &ldquo;Khởi hành ngay&rdquo; để bắt đầu.
           </motion.div>
@@ -120,16 +120,16 @@ export default function Home() {
       <footer className="w-full max-w-5xl mt-20 pt-8 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4 pb-6 text-center sm:text-left">
         <span className="text-sm font-bold text-primary">Tracking Phượt</span>
         <div className="flex flex-wrap justify-center gap-4">
-          <Link href="/help" className="text-xs text-white/35 hover:text-accent-2 transition-colors">
+          <Link href="/help" className="text-xs text-muted hover:text-accent-2 transition-colors">
             Trợ giúp &amp; Liên hệ
           </Link>
           {["Terms of Service", "Privacy Policy", "Road Safety Guide"].map((label) => (
-            <span key={label} className="text-xs text-white/35 hover:text-accent-2 transition-colors cursor-pointer">
+            <span key={label} className="text-xs text-muted hover:text-accent-2 transition-colors cursor-pointer">
               {label}
             </span>
           ))}
         </div>
-        <span className="text-xs text-white/25">© 2026 Tracking Phượt.</span>
+        <span className="text-xs text-muted">© 2026 Tracking Phượt.</span>
       </footer>
     </DashboardShell>
   );

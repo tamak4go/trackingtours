@@ -57,16 +57,16 @@ export default function StatsPage() {
           <Gauge size={22} className="text-accent-2" />
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white/95">Stats</h1>
         </div>
-        <p className="text-white/40 text-sm mb-8">Tổng hợp toàn bộ chuyến đi trong tài khoản của bạn.</p>
+        <p className="text-muted text-sm mb-8">Tổng hợp toàn bộ chuyến đi trong tài khoản của bạn.</p>
 
         {!loaded ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
         ) : !user ? (
           <SignInPrompt reason="Stats tổng hợp số liệu từ mọi chuyến đi trong tài khoản của bạn." />
         ) : trips === null ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
         ) : trips.length === 0 ? (
-          <div className="text-center text-white/30 text-sm py-16 glass rounded-2xl">
+          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">
             Chưa có chuyến đi nào để thống kê. Bắt đầu chuyến đi đầu tiên nhé!
           </div>
         ) : (
@@ -84,7 +84,7 @@ export default function StatsPage() {
                 className="glass rounded-2xl p-5 mb-8 flex items-center justify-between hover:border-accent/40 border border-transparent transition-colors"
               >
                 <div>
-                  <div className="text-[11px] text-white/35 uppercase tracking-wider mb-1">Chuyến đi dài nhất</div>
+                  <h2 className="text-[11px] text-muted uppercase tracking-wider mb-1 font-semibold">Chuyến đi dài nhất</h2>
                   <div className="text-base font-bold text-white/90">
                     {longest.title || `${longest.distanceKm.toFixed(1)} km · ${longest.photoCount} ảnh`}
                   </div>
@@ -93,7 +93,7 @@ export default function StatsPage() {
               </Link>
             )}
 
-            <div className="text-[11px] text-white/35 font-medium uppercase tracking-wider mb-3">Số chuyến đi: {trips.length}</div>
+            <div className="text-[11px] text-muted font-medium uppercase tracking-wider mb-3">Số chuyến đi: {trips.length}</div>
           </>
         )}
       </div>
@@ -106,7 +106,7 @@ function StatTile({ icon: Icon, label, value }: { icon: typeof Route; label: str
     <div className="glass rounded-2xl p-4 flex flex-col gap-2">
       <Icon size={16} className="text-accent" />
       <span className="text-xl font-bold text-white/90">{value}</span>
-      <span className="text-[11px] text-white/40">{label}</span>
+      <span className="text-[11px] text-muted">{label}</span>
     </div>
   );
 }
