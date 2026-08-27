@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Compass } from "lucide-react";
+import { staggerGrid, staggerItem } from "@/lib/motion";
 import { DashboardShell } from "@/components/DashboardShell";
 import { TripCard, type TripCardData } from "@/components/TripCard";
 
@@ -49,8 +50,8 @@ export default function ExplorePage() {
               onClick={() => setSort(opt.key)}
               className={
                 sort === opt.key
-                  ? "px-4 py-2.5 rounded-full text-xs font-semibold bg-accent/20 text-accent border border-accent/40"
-                  : "px-4 py-2.5 rounded-full text-xs font-semibold bg-white/[0.04] text-white/50 border border-white/10 hover:text-white/80 transition-colors"
+                  ? "px-4 py-2.5 rounded-full text-xs font-semibold bg-accent/20 text-accent border border-accent/40 active:scale-95 transition-transform duration-150 ease-snappy"
+                  : "px-4 py-2.5 rounded-full text-xs font-semibold bg-white/[0.04] text-white/50 border border-white/10 hover:text-white/80 active:scale-95 transition-all duration-150 ease-snappy"
               }
             >
               {opt.label}
@@ -66,12 +67,15 @@ export default function ExplorePage() {
           </div>
         ) : (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial="hidden"
+            animate="show"
+            variants={staggerGrid}
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pb-10"
           >
             {trips.map((t) => (
-              <TripCard key={t.slug} trip={t} href={t.shareUrl} />
+              <motion.div key={t.slug} variants={staggerItem}>
+                <TripCard trip={t} href={t.shareUrl} />
+              </motion.div>
             ))}
           </motion.div>
         )}

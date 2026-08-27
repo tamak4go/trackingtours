@@ -68,7 +68,13 @@ export default function SettingsPage() {
 
             <section className="glass rounded-2xl p-5">
               <div className="text-[11px] text-white/35 uppercase tracking-wider mb-3">Mặc định khi tạo chuyến đi mới</div>
-              <button onClick={toggleDefaultPrivate} className="flex items-center justify-between w-full text-left">
+              <button
+                onClick={toggleDefaultPrivate}
+                role="switch"
+                aria-checked={defaultPrivate}
+                aria-label="Tạo chuyến đi ở chế độ riêng tư theo mặc định"
+                className="flex items-center justify-between w-full text-left"
+              >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-white/[0.05] flex items-center justify-center text-white/50 shrink-0">
                     <Lock size={15} />
@@ -81,15 +87,15 @@ export default function SettingsPage() {
                 <span
                   className={
                     defaultPrivate
-                      ? "w-11 h-6 rounded-full bg-accent relative shrink-0 transition-colors"
-                      : "w-11 h-6 rounded-full bg-white/10 relative shrink-0 transition-colors"
+                      ? "w-11 h-6 rounded-full bg-accent relative shrink-0 transition-colors duration-200 ease-snappy"
+                      : "w-11 h-6 rounded-full bg-white/10 relative shrink-0 transition-colors duration-200 ease-snappy"
                   }
                 >
                   <span
                     className={
                       defaultPrivate
-                        ? "absolute top-0.5 left-[22px] w-5 h-5 rounded-full bg-neutral-950 transition-all"
-                        : "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-all"
+                        ? "absolute top-0.5 left-[22px] w-5 h-5 rounded-full bg-neutral-950 transition-all duration-200 ease-snappy"
+                        : "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-all duration-200 ease-snappy"
                     }
                   />
                 </span>

@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Search, Plus } from "lucide-react";
 import { useMyTrips, removeMyTrip } from "@/lib/my-trips";
 import { useAuthUser } from "@/lib/use-auth-user";
+import { staggerGrid, staggerItem } from "@/lib/motion";
 import { DashboardShell } from "@/components/DashboardShell";
 import { JourneyCard } from "@/components/JourneyCard";
 import type { TripCardData } from "@/components/TripCard";
@@ -70,7 +71,7 @@ export default function JourneysPage() {
           </div>
           <Link
             href="/upload"
-            className="inline-flex items-center gap-1.5 self-start sm:self-auto bg-gradient-to-r from-accent to-[#ff5f8f] text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-[0_10px_30px_rgba(255,122,69,0.3)] hover:brightness-105 transition-all"
+            className="inline-flex items-center gap-1.5 self-start sm:self-auto bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-[0_10px_30px_rgba(255,122,69,0.3)] hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy"
           >
             <Plus size={16} />
             Chuyến đi mới
@@ -100,8 +101,8 @@ export default function JourneysPage() {
                 onClick={() => setSort(opt.key)}
                 className={
                   sort === opt.key
-                    ? "px-4 py-2.5 rounded-full text-xs font-semibold bg-accent/20 text-accent border border-accent/40"
-                    : "px-4 py-2.5 rounded-full text-xs font-semibold bg-white/[0.04] text-white/50 border border-white/10 hover:text-white/80 transition-colors"
+                    ? "px-4 py-2.5 rounded-full text-xs font-semibold bg-accent/20 text-accent border border-accent/40 active:scale-95 transition-transform duration-150 ease-snappy"
+                    : "px-4 py-2.5 rounded-full text-xs font-semibold bg-white/[0.04] text-white/50 border border-white/10 hover:text-white/80 active:scale-95 transition-all duration-150 ease-snappy"
                 }
               >
                 {opt.label}
@@ -118,12 +119,15 @@ export default function JourneysPage() {
           </div>
         ) : (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial="hidden"
+            animate="show"
+            variants={staggerGrid}
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-10"
           >
             {trips.map((t) => (
-              <JourneyCard key={t.slug} trip={t} href={t.href} onRemove={t.removable ? () => removeMyTrip(t.slug) : undefined} />
+              <motion.div key={t.slug} variants={staggerItem}>
+                <JourneyCard trip={t} href={t.href} onRemove={t.removable ? () => removeMyTrip(t.slug) : undefined} />
+              </motion.div>
             ))}
           </motion.div>
         )}

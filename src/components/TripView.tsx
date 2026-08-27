@@ -317,6 +317,19 @@ export function TripView({
     };
   }, [moreMenuOpen]);
 
+  // Escape closes the lightbox and mobile photo sheet too, same keyboard
+  // escape route as the "more" menu above.
+  useEffect(() => {
+    if (!lightboxPhoto && !mobileSheetOpen) return;
+    function closeOnEscape(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setLightboxPhoto(null);
+      setMobileSheetOpen(false);
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [lightboxPhoto, mobileSheetOpen]);
+
   // Preloads stop-card photos for the canvas export path (see
   // captureCanvasRef above) -- crossOrigin must be set before `src` is
   // assigned, or the browser fetches without it and the canvas ends up
@@ -1493,7 +1506,8 @@ export function TripView({
         {!renderMode && (
           <button
             onClick={() => setMobileSheetOpen(true)}
-            className="lg:hidden absolute bottom-4 right-4 z-30 glass w-14 h-14 rounded-full flex items-center justify-center shadow-xl shadow-black/40"
+            aria-label={`Xem danh sách ${trip.photos.length} ảnh`}
+            className="lg:hidden absolute bottom-4 right-4 z-30 glass w-14 h-14 rounded-full flex items-center justify-center shadow-xl shadow-black/40 active:scale-95 transition-transform duration-150 ease-snappy"
           >
             <span className="material-symbols-outlined text-primary-container text-2xl">photo_library</span>
             <span className="absolute -top-1 -right-1 bg-gradient-to-br from-primary-container to-gradient-pink text-on-primary-container text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
@@ -1517,8 +1531,9 @@ export function TripView({
             {canEdit && (
               <button
                 onClick={handleRename}
-                className="text-on-surface-variant hover:text-primary-container transition-colors shrink-0"
+                className="text-on-surface-variant hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy shrink-0"
                 title="Đổi tên chuyến đi"
+                aria-label="Đổi tên chuyến đi"
               >
                 <span className="material-symbols-outlined text-base">edit</span>
               </button>
@@ -1540,7 +1555,10 @@ export function TripView({
               data-more-menu
               onClick={() => setMoreMenuOpen((o) => !o)}
               title="Thêm tuỳ chọn"
-              className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-primary-container transition-colors shrink-0"
+              aria-label="Thêm tuỳ chọn"
+              aria-haspopup="menu"
+              aria-expanded={moreMenuOpen}
+              className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy shrink-0"
             >
               <span className="material-symbols-outlined text-lg">more_horiz</span>
             </button>
@@ -1550,6 +1568,7 @@ export function TripView({
             <button
               onClick={handlePlayButtonClick}
               disabled={!mapReady || !hasRoute}
+              aria-label={playLabel}
               className="md:hidden glow-button text-neutral-950 w-8 h-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40"
             >
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -1560,7 +1579,10 @@ export function TripView({
               data-more-menu
               onClick={() => setMoreMenuOpen((o) => !o)}
               title="Thêm tuỳ chọn"
-              className="md:hidden w-8 h-8 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant shrink-0"
+              aria-label="Thêm tuỳ chọn"
+              aria-haspopup="menu"
+              aria-expanded={moreMenuOpen}
+              className="md:hidden w-8 h-8 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant active:scale-90 transition-all duration-150 ease-snappy shrink-0"
             >
               <span className="material-symbols-outlined text-lg">more_horiz</span>
             </button>
@@ -1645,7 +1667,8 @@ export function TripView({
                 initial={{ opacity: 0, y: -6, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                transition={{ duration: 0.15 }}
+                transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
+                style={{ transformOrigin: "top right" }}
                 className="absolute top-full right-3 sm:right-4 mt-2 z-40 glass rounded-2xl p-1.5 flex flex-col gap-0.5 w-64 shadow-xl shadow-black/40"
               >
                 <button
@@ -1855,8 +1878,9 @@ export function TripView({
             onClick={() => setLightboxPhoto(null)}
           >
             <button
-              className="absolute top-6 right-6 w-12 h-12 rounded-full glass flex items-center justify-center text-on-surface hover:text-primary-container transition-colors"
+              className="absolute top-6 right-6 w-12 h-12 rounded-full glass flex items-center justify-center text-on-surface hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy"
               onClick={() => setLightboxPhoto(null)}
+              aria-label="Đóng ảnh"
             >
               <span className="material-symbols-outlined text-2xl">close</span>
             </button>

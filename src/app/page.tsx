@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Route, Plus, ChevronRight } from "lucide-react";
 import { useMyTrips, removeMyTrip } from "@/lib/my-trips";
 import { useAuthUser } from "@/lib/use-auth-user";
+import { staggerGrid, staggerItem } from "@/lib/motion";
 import { DashboardShell } from "@/components/DashboardShell";
 import { JourneyCard } from "@/components/JourneyCard";
 import type { TripCardData } from "@/components/TripCard";
@@ -44,7 +45,7 @@ export default function Home() {
         transition={{ duration: 0.5 }}
         className="text-center mb-14 mt-10 sm:mt-16 max-w-2xl"
       >
-        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tighter uppercase text-transparent bg-clip-text bg-gradient-to-br from-primary via-[#ff5f8f] to-accent-2 mb-5 drop-shadow-[0_10px_20px_rgba(255,95,143,0.25)]">
+        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tighter uppercase text-transparent bg-clip-text bg-gradient-to-br from-primary via-gradient-pink to-accent-2 mb-5 drop-shadow-[0_10px_20px_rgba(255,95,143,0.25)]">
           Bắt đầu hành trình
           <br />
           của riêng bạn
@@ -64,7 +65,7 @@ export default function Home() {
         <div>
           <Link
             href="/upload"
-            className="group inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold bg-gradient-to-r from-accent to-[#ff5f8f] text-neutral-950 shadow-lg shadow-accent/30 hover:brightness-105 active:scale-[0.98] transition-all"
+            className="group inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 shadow-lg shadow-accent/30 hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy"
           >
             <Plus size={18} strokeWidth={2.8} />
             Khởi hành ngay
@@ -87,15 +88,21 @@ export default function Home() {
 
         {showTrips ? (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.15 }}
+            initial="hidden"
+            animate="show"
+            variants={staggerGrid}
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
           >
             {user
-              ? accountTrips!.slice(0, 6).map((t) => <JourneyCard key={t.slug} trip={t} href={t.shareUrl} />)
+              ? accountTrips!.slice(0, 6).map((t) => (
+                  <motion.div key={t.slug} variants={staggerItem}>
+                    <JourneyCard trip={t} href={t.shareUrl} />
+                  </motion.div>
+                ))
               : localTrips.slice(0, 6).map((t) => (
-                  <JourneyCard key={t.slug} trip={{ ...t, title: null }} href={t.editUrl} onRemove={() => removeMyTrip(t.slug)} />
+                  <motion.div key={t.slug} variants={staggerItem}>
+                    <JourneyCard trip={{ ...t, title: null }} href={t.editUrl} onRemove={() => removeMyTrip(t.slug)} />
+                  </motion.div>
                 ))}
           </motion.div>
         ) : (

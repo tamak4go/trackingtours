@@ -386,11 +386,11 @@ export default function UploadPage() {
                   </div>
 
                   <div className="flex items-center gap-2 justify-center mt-3">
-                    <button onClick={pickFolder} className="text-[11px] text-white/40 hover:text-accent-2 transition-colors flex items-center gap-1">
+                    <button onClick={pickFolder} className="text-[11px] text-white/40 hover:text-accent-2 active:scale-95 transition-all duration-150 ease-snappy flex items-center gap-1">
                       <FolderUp size={12} /> Cả thư mục
                     </button>
                     <span className="text-white/20">·</span>
-                    <button onClick={pickZip} className="text-[11px] text-white/40 hover:text-accent-2 transition-colors flex items-center gap-1">
+                    <button onClick={pickZip} className="text-[11px] text-white/40 hover:text-accent-2 active:scale-95 transition-all duration-150 ease-snappy flex items-center gap-1">
                       <FileArchive size={12} /> Google Takeout
                     </button>
                   </div>
@@ -437,7 +437,7 @@ export default function UploadPage() {
                     <button
                       onClick={startProcessing}
                       disabled={!selectedFiles}
-                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold uppercase tracking-wide text-sm bg-gradient-to-r from-accent to-[#ff5f8f] text-neutral-950 shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
+                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold uppercase tracking-wide text-sm bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
                     >
                       <Rocket size={18} />
                       Bắt đầu xử lý
@@ -463,7 +463,7 @@ export default function UploadPage() {
                   <div className="text-sm text-white/70 mb-4">{statusMsg}</div>
                   <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                     <motion.div
-                      className="h-full bg-gradient-to-r from-accent to-[#ff5f8f] rounded-full"
+                      className="h-full bg-gradient-to-r from-accent to-gradient-pink rounded-full"
                       animate={{ width: `${progressPct}%` }}
                       transition={{ duration: 0.25 }}
                     />
@@ -498,7 +498,7 @@ export default function UploadPage() {
                   <CopyField label="Link quản lý (để xoá sau này, giữ riêng cho bạn)" value={result.editUrl} />
                   <a
                     href={result.shareUrl}
-                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl font-semibold bg-gradient-to-r from-accent to-[#ff5f8f] text-neutral-950 shadow-lg shadow-accent/25 hover:brightness-105 active:scale-[0.99] transition-all"
+                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl font-semibold bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 shadow-lg shadow-accent/25 hover:brightness-105 active:scale-[0.99] transition-all"
                   >
                     Xem chuyến đi
                     <ArrowUpRight size={18} />

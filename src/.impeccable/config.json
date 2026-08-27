@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "app/src/app/globals.css"
+        ],
+        "createdAt": "2026-08-27T11:59:01.986Z",
+        "reason": "design-brief-stitch.md explicitly specifies coral->pink gradient text for the brand wordmark/hero heading; intentional brand choice, not decorative AI-tell"
+      },
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "app/src/app/page.tsx"
+        ],
+        "createdAt": "2026-08-27T12:02:16.193Z",
+        "reason": "design-brief-stitch.md specifies coral->pink gradient on H1 'Phượt' wordmark and hero headings; intentional brand choice, pre-existing before this session's edits"
+      }
+    ]
+  }
+}

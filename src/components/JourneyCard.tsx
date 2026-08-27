@@ -77,11 +77,12 @@ export function JourneyCard({
             onRemove();
           }}
           title="Bỏ khỏi danh sách này (không xoá chuyến đi)"
-          className={`absolute right-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/70 opacity-100 backdrop-blur-sm transition-all hover:bg-black/70 hover:text-red-400 sm:opacity-0 sm:group-hover:opacity-100 ${
-            trip.isPublic ? "top-3" : "top-12"
+          aria-label="Bỏ chuyến đi khỏi danh sách này"
+          className={`absolute right-2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white/70 opacity-100 backdrop-blur-sm transition-all duration-150 ease-snappy hover:bg-black/70 hover:text-red-400 active:scale-90 sm:opacity-0 sm:group-hover:opacity-100 ${
+            trip.isPublic ? "top-2" : "top-11"
           }`}
         >
-          <Trash2 size={13} />
+          <Trash2 size={14} />
         </button>
       )}
 

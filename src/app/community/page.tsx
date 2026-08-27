@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Users, Route, Camera } from "lucide-react";
+import { staggerGrid, staggerItem } from "@/lib/motion";
 import { DashboardShell } from "@/components/DashboardShell";
 import { TripCard, type TripCardData } from "@/components/TripCard";
 
@@ -58,12 +59,15 @@ export default function CommunityPage() {
           </div>
         ) : (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial="hidden"
+            animate="show"
+            variants={staggerGrid}
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pb-10"
           >
             {trips.map((t) => (
-              <TripCard key={t.slug} trip={t} href={t.shareUrl} />
+              <motion.div key={t.slug} variants={staggerItem}>
+                <TripCard trip={t} href={t.shareUrl} />
+              </motion.div>
             ))}
           </motion.div>
         )}

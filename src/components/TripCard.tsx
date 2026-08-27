@@ -55,7 +55,8 @@ export function TripCard({ trip, href, onRemove }: { trip: TripCardData; href: s
             onRemove();
           }}
           title="Bỏ khỏi danh sách này (không xoá chuyến đi)"
-          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:text-red-400 hover:bg-black/70 transition-all"
+          aria-label="Bỏ chuyến đi khỏi danh sách này"
+          className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:text-red-400 hover:bg-black/70 active:scale-90 transition-all duration-150 ease-snappy"
         >
           <Trash2 size={13} />
         </button>

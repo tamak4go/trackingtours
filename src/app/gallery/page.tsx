@@ -37,6 +37,15 @@ export default function GalleryPage() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!active) return;
+    function closeOnEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setActive(null);
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [active]);
+
   return (
     <DashboardShell active="gallery">
       <div className="w-full max-w-5xl mt-10 sm:mt-14">
@@ -97,7 +106,11 @@ export default function GalleryPage() {
                 <Link href={`/t/${active.tripSlug}`} className="hover:text-accent-2 transition-colors truncate">
                   {active.tripTitle || "Xem chuyến đi"} →
                 </Link>
-                <button onClick={() => setActive(null)} className="p-2 -m-2 text-white/50 hover:text-white transition-colors">
+                <button
+                  onClick={() => setActive(null)}
+                  aria-label="Đóng ảnh"
+                  className="p-2 -m-2 text-white/50 hover:text-white active:scale-90 transition-all duration-150 ease-snappy"
+                >
                   <X size={18} />
                 </button>
               </div>

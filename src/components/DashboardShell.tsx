@@ -79,18 +79,23 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
         <div className="flex items-center gap-3">
           <Link
             href="/upload"
-            className="hidden lg:flex items-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-[0_10px_30px_rgba(255,122,69,0.3)] hover:scale-95 transition-transform"
+            className="hidden lg:flex items-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-[0_10px_30px_rgba(255,122,69,0.3)] hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy"
           >
             Start Ride
           </Link>
-          <button title="Chưa có thông báo" className="hidden sm:block p-2.5 -m-2.5 text-white/50 hover:text-primary transition-colors">
+          <button
+            title="Chưa có thông báo"
+            aria-label="Thông báo (chưa có thông báo mới)"
+            className="hidden sm:block p-2.5 -m-2.5 text-white/50 hover:text-primary active:scale-[0.9] transition-all duration-150 ease-snappy"
+          >
             <Bell size={20} />
           </button>
           <AuthButton />
           <button
             onClick={() => setMobileNavOpen(true)}
-            className="lg:hidden p-2.5 -m-2.5 text-white/60 hover:text-primary transition-colors"
+            className="lg:hidden p-2.5 -m-2.5 text-white/60 hover:text-primary active:scale-[0.9] transition-all duration-150 ease-snappy"
             title="Menu"
+            aria-label="Mở menu điều hướng"
           >
             <Menu size={22} />
           </button>
@@ -124,14 +129,18 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
                     {displayName || "Đăng nhập để lưu chuyến đi"}
                   </div>
                 </div>
-                <button onClick={() => setMobileNavOpen(false)} className="p-2 text-white/50 hover:text-white">
+                <button
+                  onClick={() => setMobileNavOpen(false)}
+                  aria-label="Đóng menu"
+                  className="p-2 -m-2 text-white/50 hover:text-white active:scale-[0.9] transition-all duration-150 ease-snappy"
+                >
                   <X size={18} />
                 </button>
               </div>
               <Link
                 href="/upload"
                 onClick={() => setMobileNavOpen(false)}
-                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold py-2.5 rounded-full shadow-[0_10px_30px_rgba(255,122,69,0.3)] mb-4"
+                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold py-2.5 rounded-full shadow-[0_10px_30px_rgba(255,122,69,0.3)] active:scale-[0.97] transition-all duration-150 ease-snappy mb-4"
               >
                 Start Ride
               </Link>
