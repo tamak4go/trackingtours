@@ -56,7 +56,12 @@
   --color-primary: #ffb59a;
   --color-on-primary: #5b1b00;
   --color-primary-container: var(--accent);
-  --color-on-primary-container: #672000;
+  /* Was #672000 -- critique's browser-overlay scan measured only 4.1:1
+     against --color-gradient-pink (below the 4.5:1 AA floor) on the photo-
+     index badges that use this pair. Darkened within the same brand hue
+     (not swapped to plain black) -- verified 5.6:1 against gradient-pink
+     and 6.3:1 against primary-container/accent, both with real margin. */
+  --color-on-primary-container: #3d1400;
   --color-gradient-pink: #ff5f8f;
   --color-secondary: #75d1ff;
   --color-on-secondary: #003548;
@@ -196,6 +201,18 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
   filter: drop-shadow(0 0 5px rgba(79, 195, 247, 0.4));
+}
+
+/* Shared keyboard-focus indicator -- critique found zero focus-visible
+   styling anywhere in the nav shell, which is invisible with a mouse but a
+   real blocker for keyboard users. One utility instead of repeating the
+   same 3-4 Tailwind classes on every Link/button. */
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
 }
 
 /* Respect reduced-motion: collapse transitions/animations to near-instant

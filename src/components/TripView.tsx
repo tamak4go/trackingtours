@@ -5,7 +5,7 @@ import NextImage from "next/image";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Map as MlMap, Marker, NavigationControl, LngLatBounds, type GeoJSONSource } from "maplibre-gl";
-import { MAP_STYLE, ACCENT, ACCENT_GLOW, SECONDARY, SECONDARY_GLOW } from "@/lib/map-style";
+import { MAP_STYLE, MAP_STYLE_FALLBACK, ACCENT, ACCENT_GLOW, SECONDARY, SECONDARY_GLOW } from "@/lib/map-style";
 import { compressPhoto } from "@/lib/process-photos";
 import type { Trip, TripPhoto } from "@/lib/types";
 
@@ -210,6 +210,7 @@ export function TripView({
   const [markerIconIsCustom, setMarkerIconIsCustom] = useState(trip.markerIconIsCustom);
   const [uploadingMarkerIcon, setUploadingMarkerIcon] = useState(false);
   const markerIconInputRef = useRef<HTMLInputElement>(null);
+  const lightboxCloseRef = useRef<HTMLButtonElement>(null);
   // MapLibre's sources/layers are only added once the "load" event fires
   // (see the effect below). On a slow connection that can take a while, and
   // tapping Play before then used to crash (map.getSource() returns
@@ -218,6 +219,11 @@ export function TripView({
   const [mapReady, setMapReady] = useState(false);
   const [mapSlow, setMapSlow] = useState(false);
   const [mapKey, setMapKey] = useState(0);
+  // Falls back to a different tile provider/CDN if the primary (Esri) errors
+  // or hangs -- critique: on a weak connection the old single-source setup
+  // left "Thử tải lại" recreating the map against the exact same failing
+  // source, so Play stayed permanently disabled with no working way out.
+  const [tileSource, setTileSource] = useState<"primary" | "fallback">("primary");
   // Whether the server has TikTok credentials configured at all -- hides
   // the button entirely for deployments that never set them up, instead of
   // showing something that 501s.
@@ -318,6 +324,13 @@ export function TripView({
     };
   }, [moreMenuOpen]);
 
+  // Moves focus into the lightbox when it opens -- a dialog with role="dialog"
+  // that never receives focus is invisible to keyboard/screen-reader users
+  // even though Escape (below) lets them leave it once they're already in.
+  useEffect(() => {
+    if (lightboxPhoto) lightboxCloseRef.current?.focus();
+  }, [lightboxPhoto]);
+
   // Escape closes the lightbox and mobile photo sheet too, same keyboard
   // escape route as the "more" menu above.
   useEffect(() => {
@@ -352,16 +365,41 @@ export function TripView({
 
     const map = new MlMap({
       container: mapContainerRef.current,
-      style: MAP_STYLE,
+      style: tileSource === "fallback" ? MAP_STYLE_FALLBACK : MAP_STYLE,
       center: trip.routeCoords[0] ?? [106, 16],
       zoom: 6,
     });
     mapRef.current = map;
 
     // Slow connections (seen as low as <1 KB/s in the field) can leave the
-    // map's style/tiles loading for a very long time. Surface that instead
-    // of leaving the user staring at a black screen with no explanation.
-    const slowTimer = setTimeout(() => setMapSlow(true), 10000);
+    // map's style/tiles loading for a very long time. On the primary source,
+    // switch to the fallback tile provider automatically instead of just
+    // surfacing "it's slow" -- a different origin/CDN is more likely to
+    // actually recover than waiting on (or retrying) the same one. Only show
+    // the stuck/retry UI once the fallback has ALSO failed to load in time.
+    const slowTimer = setTimeout(() => {
+      if (tileSource === "primary") {
+        setTileSource("fallback");
+        setMapKey((k) => k + 1);
+      } else {
+        setMapSlow(true);
+      }
+    }, 10000);
+
+    // A hard error (bad DNS, blocked domain, etc.) on the primary source
+    // doesn't need to wait out the full 10s timeout above -- switch right
+    // away. Once already on the fallback, a further error just falls
+    // through to the timeout's mapSlow(true) path. Checks map.loaded()
+    // directly (not the mapReady React state, which this closure would
+    // otherwise see as permanently stale) so an unrelated later tile error
+    // on an already-successfully-loaded map can't wrongly trigger a swap.
+    map.on("error", () => {
+      if (tileSource === "primary" && !map.loaded()) {
+        clearTimeout(slowTimer);
+        setTileSource("fallback");
+        setMapKey((k) => k + 1);
+      }
+    });
 
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
 
@@ -1055,6 +1093,7 @@ export function TripView({
   function retryMap() {
     setMapReady(false);
     setMapSlow(false);
+    setTileSource("primary"); // full retry cycle: primary tiles get another chance before falling back again
     setMapKey((k) => k + 1); // bumps the effect's dep, tearing down and recreating the Map instance
   }
 
@@ -1231,14 +1270,26 @@ export function TripView({
   // animation with no way to stop and look at something mid-route.
   const playLabel = !mapReady
     ? "Đang tải bản đồ..."
-    : isPlaying
-      ? isPaused
-        ? "Tiếp tục"
-        : "Tạm dừng"
-      : hasPlayed
-        ? "Phát lại"
-        : "Phát animation";
-  const playIcon = !mapReady ? "hourglass_empty" : isPlaying ? (isPaused ? "play_arrow" : "pause") : hasPlayed ? "replay" : "play_arrow";
+    : !hasRoute
+      ? "Chưa có lộ trình"
+      : isPlaying
+        ? isPaused
+          ? "Tiếp tục"
+          : "Tạm dừng"
+        : hasPlayed
+          ? "Phát lại"
+          : "Phát animation";
+  const playIcon = !mapReady
+    ? "hourglass_empty"
+    : !hasRoute
+      ? "block"
+      : isPlaying
+        ? isPaused
+          ? "play_arrow"
+          : "pause"
+        : hasPlayed
+          ? "replay"
+          : "play_arrow";
   function handlePlayButtonClick() {
     if (!isPlaying) {
       playAnimation();
@@ -1253,11 +1304,21 @@ export function TripView({
     return (
       <div
         key={p.id}
+        role="button"
+        tabIndex={0}
+        aria-label={`Xem ảnh chụp lúc ${fmtTime(p.takenAt)}`}
         onClick={() => {
           flyToPhoto(p);
           setLightboxPhoto(p);
         }}
-        className={`flex gap-3 group cursor-pointer p-2 rounded-lg transition-colors ${
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            flyToPhoto(p);
+            setLightboxPhoto(p);
+          }
+        }}
+        className={`flex gap-3 group cursor-pointer p-2 rounded-lg transition-colors focus-ring ${
           isActive ? "bg-surface-glass border border-primary-container/30" : "hover:bg-surface-glass border border-transparent"
         }`}
       >
@@ -1276,7 +1337,7 @@ export function TripView({
               isActive ? "border-primary-container" : "border-border-glass group-hover:border-primary-container/50"
             }`}
           >
-            <NextImage src={p.url} alt="" fill sizes="320px" className="object-cover" />
+            <NextImage src={p.url} alt={`Ảnh chụp lúc ${fmtTime(p.takenAt)}`} fill sizes="320px" className="object-cover" />
           </div>
           <div className="mt-1.5 flex justify-between items-center">
             <span className={`text-xs ${isActive ? "text-primary" : "text-on-surface-variant"}`}>{fmtTime(p.takenAt)}</span>
@@ -1355,11 +1416,12 @@ export function TripView({
             <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
               <div className="glass rounded-2xl p-5 max-w-xs text-center pointer-events-auto">
                 <p className="text-sm text-on-surface-variant mb-3">
-                  Bản đồ tải hơi lâu — có thể do mạng yếu. Vẫn có thể đang tải, hoặc thử lại bên dưới.
+                  Bản đồ tải hơi lâu — đã thử 2 nguồn bản đồ khác nhau nhưng đều chậm, có thể do mạng yếu. Vẫn có thể đang tải,
+                  hoặc thử lại bên dưới.
                 </p>
                 <button
                   onClick={retryMap}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold glow-button text-neutral-950"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold glow-button text-neutral-950 focus-ring"
                 >
                   <span className="material-symbols-outlined text-sm">refresh</span>
                   Thử tải lại
@@ -1543,7 +1605,8 @@ export function TripView({
             <button
               onClick={handlePlayButtonClick}
               disabled={!mapReady || !hasRoute}
-              className="glow-button text-neutral-950 text-xs font-bold px-6 py-2 rounded-full flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+              title={playLabel}
+              className="glow-button text-neutral-950 text-xs font-bold px-6 py-2 rounded-full flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap focus-ring"
             >
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
                 {playIcon}
@@ -1568,7 +1631,8 @@ export function TripView({
               onClick={handlePlayButtonClick}
               disabled={!mapReady || !hasRoute}
               aria-label={playLabel}
-              className="md:hidden glow-button text-neutral-950 w-8 h-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40"
+              title={playLabel}
+              className="md:hidden glow-button text-neutral-950 w-8 h-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 focus-ring"
             >
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
                 {playIcon}
@@ -1616,9 +1680,17 @@ export function TripView({
                   </button>
                 )}
               </div>
+              {/* Duration + photo count merged into one pill (was two) --
+                  critique flagged this row as visibly over-packed; this
+                  drops one pill's worth of width/chrome without hiding
+                  either stat, unlike the route-mode/recompute pill below
+                  which has to stay standalone for its inline retry button. */}
               <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap">
                 <span className="material-symbols-outlined text-sm text-secondary">schedule</span>
                 {fmtDuration(trip.durationMs)}
+                <span className="opacity-40">·</span>
+                <span className="material-symbols-outlined text-sm text-secondary">photo_library</span>
+                {trip.photos.length} ảnh
               </div>
               {avgSpeed && (
                 <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap hidden xl:flex">
@@ -1626,10 +1698,6 @@ export function TripView({
                   {avgSpeed.toFixed(1)} km/h
                 </div>
               )}
-              <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap">
-                <span className="material-symbols-outlined text-sm text-secondary">photo_library</span>
-                {trip.photos.length} ảnh
-              </div>
             </div>
 
             {/* hidden below sm: on phones these move into the "..." menu instead
@@ -1873,11 +1941,15 @@ export function TripView({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Ảnh chụp lúc ${fmtTime(lightboxPhoto.takenAt)}`}
             className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center gap-6 p-6"
             onClick={() => setLightboxPhoto(null)}
           >
             <button
-              className="absolute top-6 right-6 w-12 h-12 rounded-full glass flex items-center justify-center text-on-surface hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy"
+              ref={lightboxCloseRef}
+              className="absolute top-6 right-6 w-12 h-12 rounded-full glass flex items-center justify-center text-on-surface hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy focus-ring"
               onClick={() => setLightboxPhoto(null)}
               aria-label="Đóng ảnh"
             >
@@ -1887,7 +1959,7 @@ export function TripView({
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               src={lightboxPhoto.url}
-              alt=""
+              alt={`Ảnh chụp lúc ${fmtTime(lightboxPhoto.takenAt)}`}
               className="max-w-[90vw] max-h-[75vh] object-contain rounded-lg shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             />

@@ -14,6 +14,9 @@ import {
   ArrowUpRight,
   MapPinned,
   Route as RouteIcon,
+  AlertTriangle,
+  X as XIcon,
+  Images,
 } from "lucide-react";
 import { parsePhotoExif, compressPhoto, type ParsedPhoto } from "@/lib/process-photos";
 import { extractTakeoutZips, type GeoFallback } from "@/lib/process-takeout";
@@ -67,6 +70,10 @@ export default function UploadPage() {
   const imagesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
+  // Checked between steps/loop iterations in runPipeline so "Hủy" can stop
+  // the pipeline before its next unit of work, rather than offering no way
+  // to stop a running upload at all.
+  const cancelRef = useRef(false);
 
   // The public-GPS disclosure only matters for a public trip -- a private
   // one is never exposed to anyone without the edit link/account, so there's
@@ -81,6 +88,7 @@ export default function UploadPage() {
   }
 
   async function runPipeline(files: File[], geoFallback?: Map<string, GeoFallback>) {
+    cancelRef.current = false;
     setStage("processing");
     setErrorMsg("");
     setResult(null);
@@ -97,6 +105,10 @@ export default function UploadPage() {
     setProgress({ done: 0, total: imageFiles.length });
     const parsed: ParsedPhoto[] = [];
     for (const f of imageFiles) {
+      if (cancelRef.current) {
+        setStage("idle");
+        return;
+      }
       const p = await parsePhotoExif(f);
       const fb = geoFallback?.get(f.name);
       if (fb) {
@@ -121,6 +133,10 @@ export default function UploadPage() {
       return;
     }
 
+    if (cancelRef.current) {
+      setStage("idle");
+      return;
+    }
     setStatusMsg("Đang tính lộ trình thực tế...");
     let routeMode: "road" | "straight" = "straight";
     let routeCoords: [number, number][] = geo.map((p) => [p.lng, p.lat]);
@@ -143,6 +159,10 @@ export default function UploadPage() {
     const compressed: { photo: (typeof geo)[number]; blob: Blob }[] = [];
     const localWarnings: string[] = [];
     for (const p of geo) {
+      if (cancelRef.current) {
+        setStage("idle");
+        return;
+      }
       try {
         const blob = await compressPhoto(p.file);
         compressed.push({ photo: p, blob });
@@ -303,6 +323,14 @@ export default function UploadPage() {
   }
 
   const progressPct = progress.total ? (progress.done / progress.total) * 100 : 0;
+  // Cheap filename-only check (same regex runPipeline uses) so the dropzone
+  // can preview what will actually be processed before the user commits --
+  // GPS-count itself isn't knowable without reading EXIF, which is the
+  // expensive part the preview is meant to avoid front-loading.
+  const imageFileCount = selectedFiles
+    ? selectedFiles.filter((f) => /\.(jpe?g|png|heic|heif|tiff?|webp)$/i.test(f.name)).length
+    : 0;
+  const nonImageFileCount = selectedFiles ? selectedFiles.length - imageFileCount : 0;
 
   return (
     <>
@@ -358,7 +386,20 @@ export default function UploadPage() {
                   />
 
                   <div
+                    role="button"
+                    tabIndex={0}
+                    aria-label={
+                      selectedFiles
+                        ? `Đã chọn ${selectedFiles.length} tệp, nhấp hoặc nhấn Enter để chọn lại`
+                        : "Kéo và thả ảnh vào đây, hoặc nhấn Enter để chọn tệp"
+                    }
                     onClick={pickImages}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        pickImages();
+                      }
+                    }}
                     onDragEnter={(e) => {
                       e.preventDefault();
                       setDragOver(true);
@@ -366,7 +407,7 @@ export default function UploadPage() {
                     onDragOver={(e) => e.preventDefault()}
                     onDragLeave={() => setDragOver(false)}
                     onDrop={handleDrop}
-                    className={`w-full rounded-2xl p-10 flex flex-col items-center justify-center gap-2 cursor-pointer border-2 border-dashed transition-colors ${
+                    className={`w-full rounded-2xl p-10 flex flex-col items-center justify-center gap-2 cursor-pointer border-2 border-dashed transition-colors focus-ring ${
                       dragOver ? "border-accent bg-accent/5" : "border-white/15 hover:border-white/25"
                     }`}
                   >
@@ -374,6 +415,11 @@ export default function UploadPage() {
                       <>
                         <CheckCircle2 size={40} className="text-accent-2 mb-2" />
                         <span className="text-lg font-semibold">Đã chọn {selectedFiles.length} tệp</span>
+                        <span className="text-xs text-muted flex items-center gap-1.5 mt-1">
+                          <Images size={13} />
+                          {imageFileCount} tệp là ảnh hợp lệ (JPG/PNG/HEIC)
+                          {nonImageFileCount > 0 && ` · ${nonImageFileCount} tệp khác sẽ bị bỏ qua`}
+                        </span>
                         <span className="text-xs text-muted">Nhấp để chọn lại</span>
                       </>
                     ) : (
@@ -386,11 +432,11 @@ export default function UploadPage() {
                   </div>
 
                   <div className="flex items-center gap-2 justify-center mt-3">
-                    <button onClick={pickFolder} className="text-[11px] text-muted hover:text-accent-2 active:scale-95 transition-all duration-150 ease-snappy flex items-center gap-1">
+                    <button onClick={pickFolder} className="text-[11px] text-muted hover:text-accent-2 active:scale-95 transition-all duration-150 ease-snappy flex items-center gap-1 focus-ring rounded px-1">
                       <FolderUp size={12} /> Cả thư mục
                     </button>
                     <span className="text-muted">·</span>
-                    <button onClick={pickZip} className="text-[11px] text-muted hover:text-accent-2 active:scale-95 transition-all duration-150 ease-snappy flex items-center gap-1">
+                    <button onClick={pickZip} className="text-[11px] text-muted hover:text-accent-2 active:scale-95 transition-all duration-150 ease-snappy flex items-center gap-1 focus-ring rounded px-1">
                       <FileArchive size={12} /> Google Takeout
                     </button>
                   </div>
@@ -409,16 +455,17 @@ export default function UploadPage() {
                       </span>
                     </label>
                     {!isPrivate && (
-                      <label className="flex items-start gap-2.5 text-xs text-white/50 cursor-pointer">
+                      <label className="flex items-start gap-2.5 text-xs text-amber-200/90 cursor-pointer bg-amber-400/10 border border-amber-400/25 rounded-xl p-3">
+                        <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-400" />
                         <input
                           type="checkbox"
                           checked={consent}
                           onChange={(e) => setConsent(e.target.checked)}
-                          className="mt-0.5 accent-accent w-3.5 h-3.5 shrink-0"
+                          className="mt-0.5 accent-amber-400 w-3.5 h-3.5 shrink-0"
                         />
                         <span>
-                          Tôi hiểu rằng ảnh và vị trí GPS trong chuyến đi này sẽ <b className="text-white/70">công khai</b> với
-                          bất kỳ ai có link chia sẻ (không cần đăng nhập để xem).
+                          Tôi hiểu rằng ảnh và vị trí GPS trong chuyến đi này sẽ <b className="text-amber-100">công khai</b>{" "}
+                          với bất kỳ ai có link chia sẻ (không cần đăng nhập để xem).
                         </span>
                       </label>
                     )}
@@ -427,6 +474,7 @@ export default function UploadPage() {
                       <motion.p
                         initial={{ opacity: 0, y: -4 }}
                         animate={{ opacity: 1, y: 0 }}
+                        role="alert"
                         className="flex items-start gap-1.5 text-sm text-red-400"
                       >
                         <Info size={15} className="shrink-0 mt-0.5" />
@@ -437,12 +485,12 @@ export default function UploadPage() {
                     <button
                       onClick={startProcessing}
                       disabled={!selectedFiles}
-                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold uppercase tracking-wide text-sm bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
+                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold uppercase tracking-wide text-sm bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:brightness-105 active:scale-[0.99] transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none focus-ring"
                     >
                       <Rocket size={18} />
                       Bắt đầu xử lý
                     </button>
-                    <p className="flex items-start gap-1.5 text-[11px] text-muted leading-relaxed">
+                    <p className="flex items-start gap-1.5 text-xs text-muted leading-relaxed max-w-md">
                       <Info size={13} className="shrink-0 mt-0.5" />
                       Chỉ ảnh có GPS mới dùng được. Ảnh HEIC (iPhone) đọc được vị trí bình thường; nếu trình duyệt không nén được
                       ảnh gốc, app sẽ tự tải lên bản gốc thay vì bỏ qua.
@@ -460,17 +508,34 @@ export default function UploadPage() {
                   className="text-center py-6 w-full"
                 >
                   <Loader2 size={28} className="mx-auto mb-4 text-accent animate-spin" />
-                  <div className="text-sm text-white/70 mb-4">{statusMsg}</div>
-                  <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div className="text-sm text-white/70 mb-4" aria-live="polite">
+                    {statusMsg}
+                  </div>
+                  <div
+                    className="h-1.5 bg-white/10 rounded-full overflow-hidden"
+                    role="progressbar"
+                    aria-valuenow={Math.round(progressPct)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
                     <motion.div
                       className="h-full w-full origin-left bg-gradient-to-r from-accent to-gradient-pink rounded-full"
                       animate={{ scaleX: progressPct / 100 }}
                       transition={{ duration: 0.25 }}
                     />
                   </div>
-                  <div className="text-xs text-muted mt-2 tabular-nums">
+                  <div className="text-xs text-muted mt-2 tabular-nums mb-4">
                     {progress.done}/{progress.total}
                   </div>
+                  <button
+                    onClick={() => {
+                      cancelRef.current = true;
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-red-400 active:scale-95 transition-all duration-150 ease-snappy focus-ring px-3 py-1.5 rounded-full"
+                  >
+                    <XIcon size={13} />
+                    Hủy
+                  </button>
                 </motion.div>
               )}
 
@@ -498,7 +563,7 @@ export default function UploadPage() {
                   <CopyField label="Link quản lý (để xoá sau này, giữ riêng cho bạn)" value={result.editUrl} />
                   <a
                     href={result.shareUrl}
-                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl font-semibold bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 shadow-lg shadow-accent/25 hover:brightness-105 active:scale-[0.99] transition-all"
+                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl font-semibold bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 shadow-lg shadow-accent/25 hover:brightness-105 active:scale-[0.99] transition-all focus-ring"
                   >
                     Xem chuyến đi
                     <ArrowUpRight size={18} />
@@ -506,13 +571,13 @@ export default function UploadPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={reset}
-                      className="flex-1 py-2 rounded-xl text-sm text-muted hover:text-white/70 transition-colors"
+                      className="flex-1 py-2 rounded-xl text-sm text-muted hover:text-white/70 transition-colors focus-ring"
                     >
                       Tạo chuyến đi khác
                     </button>
                     <Link
                       href="/"
-                      className="flex-1 py-2 rounded-xl text-sm text-center text-muted hover:text-white/70 transition-colors"
+                      className="flex-1 py-2 rounded-xl text-sm text-center text-muted hover:text-white/70 transition-colors focus-ring"
                     >
                       Về trang chủ
                     </Link>

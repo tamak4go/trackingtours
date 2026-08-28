@@ -65,7 +65,7 @@ export default function Home() {
         <div>
           <Link
             href="/upload"
-            className="group inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 shadow-lg shadow-accent/30 hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy"
+            className="group inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 shadow-lg shadow-accent/30 hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy focus-ring"
           >
             <Plus size={18} strokeWidth={2.8} />
             Khởi hành ngay
@@ -80,7 +80,10 @@ export default function Home() {
             Hành trình gần đây {user ? "(theo tài khoản Google)" : "(lưu trên trình duyệt này)"}
           </h2>
           {showTrips && (
-            <Link href="/journeys" className="text-[11px] text-accent-2 font-medium hover:text-accent transition-colors">
+            <Link
+              href="/journeys"
+              className="text-[11px] text-accent-2 font-medium hover:text-accent transition-colors focus-ring"
+            >
               Xem tất cả
             </Link>
           )}
@@ -120,14 +123,18 @@ export default function Home() {
       <footer className="w-full max-w-5xl mt-20 pt-8 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4 pb-6 text-center sm:text-left">
         <span className="text-sm font-bold text-primary">Tracking Phượt</span>
         <div className="flex flex-wrap justify-center gap-4">
-          <Link href="/help" className="text-xs text-muted hover:text-accent-2 transition-colors">
+          <Link href="/help" className="text-xs text-muted hover:text-accent-2 transition-colors focus-ring">
             Trợ giúp &amp; Liên hệ
           </Link>
-          {["Terms of Service", "Privacy Policy", "Road Safety Guide"].map((label) => (
-            <span key={label} className="text-xs text-muted hover:text-accent-2 transition-colors cursor-pointer">
-              {label}
-            </span>
-          ))}
+          <Link href="/terms" className="text-xs text-muted hover:text-accent-2 transition-colors focus-ring">
+            Terms of Service
+          </Link>
+          <Link href="/privacy" className="text-xs text-muted hover:text-accent-2 transition-colors focus-ring">
+            Privacy Policy
+          </Link>
+          <span title="Sắp ra mắt" className="text-xs text-muted/60">
+            Road Safety Guide
+          </span>
         </div>
         <span className="text-xs text-muted">© 2026 Tracking Phượt.</span>
       </footer>

@@ -7,7 +7,7 @@ import {
   Bell,
   Menu,
   X,
-  LayoutDashboard,
+  Lock,
   Map as MapIcon,
   GalleryHorizontal,
   Gauge,
@@ -27,12 +27,15 @@ const TOP_LINKS = [
   { key: "community", href: "/community", label: "Community" },
 ] as const;
 
+// `gated: true` pages render a SignInPrompt for guests instead of content --
+// still a real, navigable destination, just dimmed with a lock hint so
+// guests aren't surprised after the click (critique: these rendered
+// identically to fully-live links, no indication login is needed).
 const SIDE_LINKS = [
-  { key: "dashboard", href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { key: "map", href: "/map", label: "Map View", icon: MapIcon },
-  { key: "gallery", href: "/gallery", label: "Gallery", icon: GalleryHorizontal },
-  { key: "stats", href: "/stats", label: "Stats", icon: Gauge },
-  { key: "settings", href: "/settings", label: "Settings", icon: Settings },
+  { key: "map", href: "/map", label: "Map View", icon: MapIcon, gated: true },
+  { key: "gallery", href: "/gallery", label: "Gallery", icon: GalleryHorizontal, gated: true },
+  { key: "stats", href: "/stats", label: "Stats", icon: Gauge, gated: true },
+  { key: "settings", href: "/settings", label: "Settings", icon: Settings, gated: false },
 ] as const;
 
 export type NavKey = (typeof TOP_LINKS)[number]["key"] | (typeof SIDE_LINKS)[number]["key"] | "help";
@@ -66,8 +69,8 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
                   href={link.href}
                   className={
                     active === link.key
-                      ? "font-bold text-primary border-b-2 border-primary pb-1"
-                      : "text-white/50 font-medium hover:text-primary transition-colors pb-1"
+                      ? "font-bold text-primary border-b-2 border-primary pb-1 focus-ring"
+                      : "text-white/50 font-medium hover:text-primary transition-colors pb-1 focus-ring"
                   }
                 >
                   {link.label}
@@ -79,21 +82,21 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
         <div className="flex items-center gap-3">
           <Link
             href="/upload"
-            className="hidden lg:flex items-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-glow-accent hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy"
+            className="hidden lg:flex items-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-glow-accent hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy focus-ring"
           >
             Start Ride
           </Link>
           <button
             title="Chưa có thông báo"
             aria-label="Thông báo (chưa có thông báo mới)"
-            className="hidden sm:block p-2.5 -m-2.5 text-white/50 hover:text-primary active:scale-[0.9] transition-all duration-150 ease-snappy"
+            className="hidden sm:block p-2.5 -m-2.5 text-white/50 hover:text-primary active:scale-[0.9] transition-all duration-150 ease-snappy focus-ring"
           >
             <Bell size={20} />
           </button>
           <AuthButton />
           <button
             onClick={() => setMobileNavOpen(true)}
-            className="lg:hidden p-2.5 -m-2.5 text-white/60 hover:text-primary active:scale-[0.9] transition-all duration-150 ease-snappy"
+            className="lg:hidden p-2.5 -m-2.5 text-white/60 hover:text-primary active:scale-[0.9] transition-all duration-150 ease-snappy focus-ring"
             title="Menu"
             aria-label="Mở menu điều hướng"
           >
@@ -123,7 +126,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
-                <div>
+                <div className="min-w-0">
                   <div className="text-base font-bold text-primary">{displayName ? "Rider Profile" : "Khách"}</div>
                   <div className="text-xs text-muted truncate max-w-[180px]">
                     {displayName || "Đăng nhập để lưu chuyến đi"}
@@ -132,7 +135,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
                 <button
                   onClick={() => setMobileNavOpen(false)}
                   aria-label="Đóng menu"
-                  className="p-2 -m-2 text-white/50 hover:text-white active:scale-[0.9] transition-all duration-150 ease-snappy"
+                  className="p-2 -m-2 text-white/50 hover:text-white active:scale-[0.9] transition-all duration-150 ease-snappy focus-ring shrink-0"
                 >
                   <X size={18} />
                 </button>
@@ -140,7 +143,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
               <Link
                 href="/upload"
                 onClick={() => setMobileNavOpen(false)}
-                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold py-2.5 rounded-full shadow-glow-accent active:scale-[0.97] transition-all duration-150 ease-snappy mb-4"
+                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-primary-container to-gradient-pink text-neutral-950 text-sm font-bold py-2.5 rounded-full shadow-glow-accent active:scale-[0.97] transition-all duration-150 ease-snappy focus-ring mb-4"
               >
                 Start Ride
               </Link>
@@ -152,27 +155,31 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
                     onClick={() => setMobileNavOpen(false)}
                     className={
                       active === link.key
-                        ? "py-2.5 px-2 rounded-lg font-semibold text-accent-2 bg-white/[0.05]"
-                        : "py-2.5 px-2 rounded-lg text-white/60 hover:bg-white/[0.05]"
+                        ? "py-2.5 px-2 rounded-lg font-semibold text-accent-2 bg-white/[0.05] focus-ring"
+                        : "py-2.5 px-2 rounded-lg text-white/60 hover:bg-white/[0.05] focus-ring"
                     }
                   >
                     {link.label}
                   </Link>
                 ))}
                 <div className="my-2 border-t border-white/[0.06]" />
-                {SIDE_LINKS.slice(1).map((link) => (
+                {SIDE_LINKS.map((link) => (
                   <Link
                     key={link.key}
                     href={link.href}
                     onClick={() => setMobileNavOpen(false)}
+                    title={link.gated && !user ? "Đăng nhập để xem" : undefined}
                     className={
                       active === link.key
-                        ? "flex items-center gap-3 py-2.5 px-2 rounded-lg font-semibold text-accent-2 bg-white/[0.05]"
-                        : "flex items-center gap-3 py-2.5 px-2 rounded-lg text-white/60 hover:bg-white/[0.05]"
+                        ? "flex items-center gap-3 py-2.5 px-2 rounded-lg font-semibold text-accent-2 bg-white/[0.05] focus-ring"
+                        : link.gated && !user
+                          ? "flex items-center gap-3 py-2.5 px-2 rounded-lg text-white/35 hover:bg-white/[0.05] focus-ring"
+                          : "flex items-center gap-3 py-2.5 px-2 rounded-lg text-white/60 hover:bg-white/[0.05] focus-ring"
                     }
                   >
                     <link.icon size={17} />
                     {link.label}
+                    {link.gated && !user && <Lock size={12} className="ml-auto" />}
                   </Link>
                 ))}
                 <Link
@@ -180,8 +187,8 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
                   onClick={() => setMobileNavOpen(false)}
                   className={
                     active === "help"
-                      ? "flex items-center gap-3 py-2.5 px-2 rounded-lg font-semibold text-accent-2 bg-white/[0.05]"
-                      : "flex items-center gap-3 py-2.5 px-2 rounded-lg text-white/60 hover:bg-white/[0.05]"
+                      ? "flex items-center gap-3 py-2.5 px-2 rounded-lg font-semibold text-accent-2 bg-white/[0.05] focus-ring"
+                      : "flex items-center gap-3 py-2.5 px-2 rounded-lg text-white/60 hover:bg-white/[0.05] focus-ring"
                   }
                 >
                   <HelpCircle size={17} />
@@ -191,7 +198,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
               {user && (
                 <button
                   onClick={() => supabaseBrowser().auth.signOut()}
-                  className="mt-auto flex items-center gap-3 text-red-400/80 hover:text-red-400 transition-colors text-sm py-2.5 px-2"
+                  className="mt-auto flex items-center gap-3 text-red-400/80 hover:text-red-400 transition-colors text-sm py-2.5 px-2 focus-ring"
                 >
                   <LogOut size={16} />
                   Logout
@@ -203,7 +210,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
       </AnimatePresence>
 
       <aside className="hidden lg:flex flex-col w-64 fixed right-0 top-[65px] bottom-0 py-8 px-6 bg-white/[0.02] backdrop-blur-2xl border-l border-white/[0.06] z-30">
-        <div className="mb-8">
+        <div className="mb-8 min-w-0">
           <div className="text-lg font-bold text-primary mb-1">{displayName ? "Rider Profile" : "Khách"}</div>
           <div className="text-sm text-muted truncate">{displayName || "Đăng nhập để lưu chuyến đi vào tài khoản"}</div>
         </div>
@@ -212,21 +219,27 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
             <Link
               key={link.key}
               href={link.href}
+              title={link.gated && !user ? "Đăng nhập để xem" : undefined}
               className={
-                active === link.key || (link.key === "dashboard" && active === "home")
-                  ? "flex items-center gap-3 text-accent-2 font-semibold border-r-4 border-accent-2 pr-4 py-2"
-                  : "flex items-center gap-3 text-muted hover:bg-white/[0.05] transition-colors py-2 px-2 rounded-lg"
+                active === link.key
+                  ? "flex items-center gap-3 text-accent-2 font-semibold border-r-4 border-accent-2 pr-4 py-2 focus-ring"
+                  : link.gated && !user
+                    ? "flex items-center gap-3 text-white/35 hover:bg-white/[0.05] transition-colors py-2 px-2 rounded-lg focus-ring"
+                    : "flex items-center gap-3 text-muted hover:bg-white/[0.05] transition-colors py-2 px-2 rounded-lg focus-ring"
               }
             >
               <link.icon size={18} />
               <span className="text-sm">{link.label}</span>
+              {link.gated && !user && <Lock size={12} className="ml-auto" />}
             </Link>
           ))}
         </nav>
         <div className="mt-auto space-y-4">
           <button
+            disabled
             title="Sắp ra mắt"
-            className="w-full py-2.5 bg-white/[0.03] border border-white/10 rounded-lg text-xs font-semibold text-primary cursor-default flex items-center justify-center gap-1.5"
+            aria-label="Upgrade to Pro (sắp ra mắt)"
+            className="w-full py-2.5 bg-white/[0.03] border border-white/10 rounded-lg text-xs font-semibold text-primary opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
           >
             <Sparkles size={13} />
             Upgrade to Pro
@@ -236,8 +249,8 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
               href="/help"
               className={
                 active === "help"
-                  ? "flex items-center gap-3 text-accent-2 font-semibold transition-colors text-sm"
-                  : "flex items-center gap-3 text-muted hover:text-primary transition-colors text-sm"
+                  ? "flex items-center gap-3 text-accent-2 font-semibold transition-colors text-sm focus-ring"
+                  : "flex items-center gap-3 text-muted hover:text-primary transition-colors text-sm focus-ring"
               }
             >
               <HelpCircle size={16} />
@@ -246,7 +259,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
             {user && (
               <button
                 onClick={() => supabaseBrowser().auth.signOut()}
-                className="flex items-center gap-3 text-red-400/80 hover:text-red-400 transition-colors text-sm"
+                className="flex items-center gap-3 text-red-400/80 hover:text-red-400 transition-colors text-sm focus-ring"
               >
                 <LogOut size={16} />
                 Logout

@@ -38,6 +38,28 @@ export const MAP_STYLE: StyleSpecification = {
   layers: [{ id: "satellite-layer", type: "raster", source: "satellite" }],
 };
 
+// Fallback used when the primary Esri source errors or hangs (critique:
+// riders on weak rural connections hit this in the field, and the old
+// "retry" just recreated the map against the same failing source). CARTO's
+// free raster basemap is a different origin/CDN entirely, so a primary
+// outage is unlikely to take both down at once. Standard {z}/{x}/{y} order.
+export const MAP_STYLE_FALLBACK: StyleSpecification = {
+  version: 8,
+  sources: {
+    "fallback-basemap": {
+      type: "raster",
+      tiles: [
+        "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+      ],
+      tileSize: 256,
+      attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; OpenStreetMap contributors',
+    },
+  },
+  layers: [{ id: "fallback-basemap-layer", type: "raster", source: "fallback-basemap" }],
+};
+
 // MapLibre paint properties need a literal color string (they can't read a
 // CSS custom property), so the glow variants derive from the hex constants
 // below instead of retyping the RGB triplet -- keeps this file self-
