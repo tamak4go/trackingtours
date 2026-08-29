@@ -7,15 +7,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #08090d;
-  --foreground: #f1f4f8;
-  --accent: #ff7a45;
-  --accent-2: #4fc3f7;
-  /* RGB triplet twin of --accent, for rgba() composition in glow/shadow
-     effects (CSS's rgba() can't take a hex custom property directly). Every
-     coral glow effect in the app should derive its color from this single
-     place instead of retyping "255, 122, 69". */
-  --accent-rgb: 255, 122, 69;
+  /* Redesign (moving off the near-black+neon-glow+glass-card cluster):
+     navy ground, solid flat amber accent (no gradient partner), muted teal
+     secondary. Values match the approved reference direction. */
+  --background: #060b14;
+  --foreground: #eef2f8;
+  --accent: #f5a623;
+  --accent-2: #2dd4bf;
+  /* RGB triplet twin of --accent, for rgba() composition in shadow effects
+     (CSS's rgba() can't take a hex custom property directly). */
+  --accent-rgb: 245, 166, 35;
 }
 
 /* Material Design 3 tonal palette, used by the trip share ("Journey Share
@@ -35,8 +36,8 @@
      replacement floor. text-white/50 and above already clear AA on their
      own and are unaffected. */
   --color-muted: rgba(255, 255, 255, 0.58);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans-raw);
+  --font-display: var(--font-display-raw);
 
   /* Motion tokens -- Tailwind v4 turns a "--ease-NAME" theme var into an
      "ease-NAME" utility class. Punchier than the built-in CSS easings on
@@ -47,30 +48,33 @@
   --ease-glide: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
-  /* The CTA button glow, used identically on every primary/gradient button
-     across the app (Start Ride, Chuyến đi mới, .glow-button). Was retyped
-     as a literal rgba(255,122,69,0.3) shadow at 4 separate call sites;
-     derives from --accent-rgb so the color can never drift out of sync. */
-  --shadow-glow-accent: 0 10px 30px rgba(var(--accent-rgb), 0.3);
+  /* Redesign: was a 30px colored halo (the literal "neon glow" AI-slop
+     tell). Now a normal elevation shadow -- mostly neutral black, only a
+     faint warm tint -- used identically on every primary CTA (Start Ride,
+     Chuyến đi mới, .glow-button). */
+  --shadow-glow-accent: 0 8px 20px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(var(--accent-rgb), 0.18);
 
-  --color-primary: #ffb59a;
-  --color-on-primary: #5b1b00;
+  --color-primary: #ffcf7d;
+  --color-on-primary: #4a3200;
   --color-primary-container: var(--accent);
-  /* Was #672000 -- critique's browser-overlay scan measured only 4.1:1
-     against --color-gradient-pink (below the 4.5:1 AA floor) on the photo-
-     index badges that use this pair. Darkened within the same brand hue
-     (not swapped to plain black) -- verified 5.6:1 against gradient-pink
-     and 6.3:1 against primary-container/accent, both with real margin. */
+  /* #3d1400 dark-brown on solid amber measures ~8:1 -- comfortable AA
+     margin now that --color-gradient-pink no longer differs from --accent
+     (see below), so this pairing only ever sits on one flat color. */
   --color-on-primary-container: #3d1400;
-  --color-gradient-pink: #ff5f8f;
-  --color-secondary: #75d1ff;
-  --color-on-secondary: #003548;
-  --color-secondary-container: #009cce;
-  --color-on-secondary-container: #002e3f;
-  --color-tertiary: #4fd8e9;
-  --color-on-tertiary: #00363c;
-  --color-tertiary-container: #00b2c2;
-  --color-on-tertiary-container: #003f45;
+  /* Redesign: was a distinct pink (#ff5f8f) forming a coral->pink gradient
+     pair with primary-container -- the exact "gradient CTA" pattern flagged
+     as an AI-slop tell. Aliased to the same flat accent so every existing
+     `bg-gradient-to-* from-primary-container to-gradient-pink` call site
+     renders as a solid fill with zero component changes required. */
+  --color-gradient-pink: var(--accent);
+  --color-secondary: var(--accent-2);
+  --color-on-secondary: #003b36;
+  --color-secondary-container: #1a9e8f;
+  --color-on-secondary-container: #00201c;
+  --color-tertiary: var(--accent-2);
+  --color-on-tertiary: #003b36;
+  --color-tertiary-container: #1a9e8f;
+  --color-on-tertiary-container: #00201c;
   --color-error: #ffb4ab;
   --color-on-error: #690005;
   --color-error-container: #93000a;
@@ -92,58 +96,33 @@
   --color-outline-variant: #58423a;
   --color-border-glass: rgba(255, 255, 255, 0.1);
   --color-surface-glass: rgba(255, 255, 255, 0.04);
-  --color-bg-blob-coral: rgba(var(--accent-rgb), 0.16);
-  --color-bg-blob-cyan: rgba(79, 195, 247, 0.16);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans-raw), Arial, Helvetica, sans-serif;
 }
 
-/* Soft blurred color blobs behind the whole app -- fixed so they don't
-   scroll, blended low-opacity so text stays readable on top. Pure CSS, no
-   JS cost. */
+/* Redesign: this used to paint two blurred coral/cyan gradient blobs behind
+   every page -- the exact "gradient-mesh glow" backdrop that reads as
+   generic AI-dashboard filler. Kept as an inert hook (many pages still
+   render `<div className="bg-mesh" />`) so no component needs to change,
+   but it now renders nothing: a flat, quiet ground is the point of this
+   direction, not a decorative glow. */
 .bg-mesh {
   position: fixed;
   inset: 0;
   z-index: -1;
-  overflow: hidden;
   pointer-events: none;
 }
-.bg-mesh::before,
-.bg-mesh::after {
-  content: "";
-  position: absolute;
-  width: 60vmax;
-  height: 60vmax;
-  border-radius: 9999px;
-  filter: blur(120px);
-  opacity: 0.16;
-}
-.bg-mesh::before {
-  top: -20vmax;
-  right: -15vmax;
-  background: radial-gradient(circle, var(--accent), transparent 70%);
-}
-.bg-mesh::after {
-  bottom: -25vmax;
-  left: -20vmax;
-  background: radial-gradient(circle, var(--accent-2), transparent 70%);
-}
 
-.text-gradient {
-  background: linear-gradient(135deg, #ffb37a 0%, var(--accent) 45%, #ff5f8f 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
+/* Redesign: solid flat panel instead of frosted/blurred glass -- glass-card
+   overuse was named directly as part of the "AI slop" feedback. Backdrop-
+   blur removed everywhere `.glass` is used (cards, headers, sheets, the
+   trip-share sidebar) in one place instead of touching every call site. */
 .glass {
-  background: color-mix(in srgb, white 4%, transparent);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--background) 94%);
   border: 1px solid color-mix(in srgb, white 10%, transparent);
 }
 
@@ -163,8 +142,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Redesign: "glow-button" now ships a normal elevation shadow, not a
+   colored neon halo -- the name stays (used across many call sites) but
+   the effect it produces no longer glows. */
 .glow-button {
-  background: linear-gradient(135deg, var(--color-primary-container), var(--color-gradient-pink));
+  background: var(--color-primary-container);
   box-shadow: var(--shadow-glow-accent);
   transition:
     transform 160ms var(--ease-snappy),
@@ -175,10 +157,8 @@ body {
 }
 
 .pill {
-  background-color: var(--color-surface-glass);
+  background-color: color-mix(in srgb, var(--foreground) 8%, var(--background) 92%);
   border: 1px solid var(--color-border-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   border-radius: 9999px;
   height: 32px;
   display: flex;
@@ -191,7 +171,7 @@ body {
   stroke-width: 4;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 8px rgba(var(--accent-rgb), 0.6));
+  filter: drop-shadow(0 0 4px rgba(var(--accent-rgb), 0.45));
 }
 
 .route-line-dashed {
@@ -200,7 +180,7 @@ body {
   stroke-dasharray: 6 6;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 5px rgba(79, 195, 247, 0.4));
+  filter: drop-shadow(0 0 3px rgba(45, 212, 191, 0.35));
 }
 
 /* Shared keyboard-focus indicator -- critique found zero focus-visible

@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Users, Route, Camera } from "lucide-react";
 import { staggerGrid, staggerItem } from "@/lib/motion";
 import { DashboardShell } from "@/components/DashboardShell";
+import { StatusPanel } from "@/components/StatusPanel";
 import { TripCard, type TripCardData } from "@/components/TripCard";
 
 type ExploreTrip = TripCardData & { shareUrl: string };
@@ -52,11 +53,9 @@ export default function CommunityPage() {
         </div>
 
         {trips === null ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <StatusPanel>Đang tải...</StatusPanel>
         ) : trips.length === 0 ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">
-            Cộng đồng chưa có chuyến đi công khai nào. Hãy là người đầu tiên!
-          </div>
+          <StatusPanel icon={Route}>Cộng đồng chưa có chuyến đi công khai nào. Hãy là người đầu tiên!</StatusPanel>
         ) : (
           <motion.div
             initial="hidden"

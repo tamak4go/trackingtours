@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Search, Plus } from "lucide-react";
+import { Search, Route } from "lucide-react";
 import { useMyTrips, removeMyTrip } from "@/lib/my-trips";
 import { useAuthUser } from "@/lib/use-auth-user";
 import { staggerGrid, staggerItem } from "@/lib/motion";
 import { DashboardShell } from "@/components/DashboardShell";
 import { JourneyCard } from "@/components/JourneyCard";
+import { StatusPanel } from "@/components/StatusPanel";
 import type { TripCardData } from "@/components/TripCard";
 
 type AccountTrip = TripCardData & { shareUrl: string };
@@ -71,10 +72,10 @@ export default function JourneysPage() {
           </div>
           <Link
             href="/upload"
-            className="inline-flex items-center gap-1.5 self-start sm:self-auto bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 text-sm font-bold px-5 py-2.5 rounded-full shadow-glow-accent hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy"
+            className="inline-flex items-center gap-2 self-start sm:self-auto pl-5 pr-4 py-2.5 rounded-md bg-accent text-neutral-950 text-xs font-semibold uppercase tracking-wide hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy focus-ring"
           >
-            <Plus size={16} />
             Chuyến đi mới
+            <span aria-hidden="true">→</span>
           </Link>
         </div>
 
@@ -112,11 +113,11 @@ export default function JourneysPage() {
         </div>
 
         {!loaded || trips === null ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <StatusPanel>Đang tải...</StatusPanel>
         ) : trips.length === 0 ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">
+          <StatusPanel icon={Route}>
             {query ? "Không tìm thấy chuyến đi nào khớp." : 'Chưa có chuyến đi nào. Bấm "Chuyến đi mới" để bắt đầu.'}
-          </div>
+          </StatusPanel>
         ) : (
           <motion.div
             initial="hidden"

@@ -1,15 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+// Display serif for headlines only -- distinctive, editorial, not another
+// generic dashboard sans. Both faces need "vietnamese" in subsets or every
+// accented word (nearly all Vietnamese copy in this app) silently falls
+// back to a mismatched system font -- verified against Google Fonts' own
+// served @font-face blocks before picking these two (Outfit, the reference
+// site's sans, has NO vietnamese subset at all and was rejected for that).
+const fraunces = Fraunces({
+  variable: "--font-display-raw",
+  subsets: ["latin", "vietnamese"],
+  weight: ["600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-sans-raw",
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -21,7 +29,7 @@ export const metadata: Metadata = {
 // Matches --background (globals.css) so the OS status bar / browser chrome
 // on mobile blends with the app instead of showing a default white/gray bar.
 export const viewport: Viewport = {
-  themeColor: "#08090d",
+  themeColor: "#060b14",
   colorScheme: "dark",
 };
 
@@ -29,7 +37,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="vi"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${fraunces.variable} ${jakarta.variable} h-full antialiased`}
     >
       <head>
         {/* Icon font used by the trip share screen (Material Symbols). */}

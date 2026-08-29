@@ -6,6 +6,7 @@ import { Gauge, Route, Clock, Camera, TrendingUp } from "lucide-react";
 import { useAuthUser } from "@/lib/use-auth-user";
 import { DashboardShell } from "@/components/DashboardShell";
 import { SignInPrompt } from "@/components/SignInPrompt";
+import { StatusPanel } from "@/components/StatusPanel";
 
 type AccountTrip = {
   slug: string;
@@ -60,15 +61,13 @@ export default function StatsPage() {
         <p className="text-muted text-sm mb-8">Tổng hợp toàn bộ chuyến đi trong tài khoản của bạn.</p>
 
         {!loaded ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <StatusPanel>Đang tải...</StatusPanel>
         ) : !user ? (
           <SignInPrompt reason="Stats tổng hợp số liệu từ mọi chuyến đi trong tài khoản của bạn." />
         ) : trips === null ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <StatusPanel>Đang tải...</StatusPanel>
         ) : trips.length === 0 ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">
-            Chưa có chuyến đi nào để thống kê. Bắt đầu chuyến đi đầu tiên nhé!
-          </div>
+          <StatusPanel icon={Route}>Chưa có chuyến đi nào để thống kê. Bắt đầu chuyến đi đầu tiên nhé!</StatusPanel>
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
@@ -84,7 +83,7 @@ export default function StatsPage() {
                 className="glass rounded-2xl p-5 mb-8 flex items-center justify-between hover:border-accent/40 border border-transparent transition-colors"
               >
                 <div>
-                  <h2 className="text-[11px] text-muted uppercase tracking-wider mb-1 font-semibold">Chuyến đi dài nhất</h2>
+                  <h2 className="text-xs text-muted mb-1">Chuyến đi dài nhất</h2>
                   <div className="text-base font-bold text-white/90">
                     {longest.title || `${longest.distanceKm.toFixed(1)} km · ${longest.photoCount} ảnh`}
                   </div>
@@ -93,7 +92,7 @@ export default function StatsPage() {
               </Link>
             )}
 
-            <div className="text-[11px] text-muted font-medium uppercase tracking-wider mb-3">Số chuyến đi: {trips.length}</div>
+            <div className="text-xs text-muted mb-3">Số chuyến đi: {trips.length}</div>
           </>
         )}
       </div>

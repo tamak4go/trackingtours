@@ -56,10 +56,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
 
       <nav className="sticky top-0 z-40 flex items-center justify-between px-5 sm:px-8 py-4 bg-black/20 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="flex items-center gap-8">
-          <Link
-            href="/"
-            className="text-xl font-bold tracking-tighter text-primary drop-shadow-[0_0_15px_rgba(255,181,154,0.3)]"
-          >
+          <Link href="/" className="text-xl font-display font-semibold tracking-tight text-primary focus-ring rounded">
             Tracking Phượt
           </Link>
           <ul className="hidden lg:flex gap-6 text-sm">

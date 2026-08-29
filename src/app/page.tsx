@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Route, Plus, ChevronRight } from "lucide-react";
+import { Route } from "lucide-react";
 import { useMyTrips, removeMyTrip } from "@/lib/my-trips";
 import { useAuthUser } from "@/lib/use-auth-user";
 import { staggerGrid, staggerItem } from "@/lib/motion";
@@ -43,41 +43,43 @@ export default function Home() {
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="text-center mb-14 mt-10 sm:mt-16 max-w-2xl"
+        className="w-full max-w-5xl mt-10 sm:mt-14 mb-16 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-10 lg:gap-16 items-center"
       >
-        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tighter uppercase text-transparent bg-clip-text bg-gradient-to-br from-primary via-gradient-pink to-accent-2 mb-5 drop-shadow-[0_10px_20px_rgba(255,95,143,0.25)]">
-          Bắt đầu hành trình
-          <br />
-          của riêng bạn
-        </h1>
-        <p className="text-white/50 text-sm sm:text-base leading-relaxed max-w-lg mx-auto mb-8">
-          Upload ảnh chuyến đi → tự tính lộ trình từ GPS trong ảnh → có link chia sẻ cho bạn bè xem lại.
-        </p>
-        {hasAccountTrips && (
-          <div className="inline-flex items-center gap-1.5 mb-6 text-xs text-white/60 bg-white/[0.05] border border-white/10 px-3 py-1.5 rounded-full">
-            <Route size={13} className="text-accent" />
-            <span>
-              <b className="text-white/85">{accountTrips!.length}</b> chuyến đi ·{" "}
-              <b className="text-white/85">{totalKm.toFixed(0)}</b> km
-            </span>
-          </div>
-        )}
         <div>
+          <h1 className="font-display text-4xl sm:text-5xl font-semibold tracking-tight text-foreground mb-5 text-balance">
+            Bắt đầu <span className="text-accent">hành trình</span> của riêng bạn
+          </h1>
+          <p className="text-white/50 text-sm sm:text-base leading-relaxed max-w-md mb-7">
+            Upload ảnh chuyến đi → tự tính lộ trình từ GPS trong ảnh → có link chia sẻ cho bạn bè xem lại.
+          </p>
+          {hasAccountTrips && (
+            <div className="flex items-center gap-1.5 mb-7 text-xs text-white/60">
+              <Route size={13} className="text-accent" />
+              <span>
+                <b className="text-white/85">{accountTrips!.length}</b> chuyến đi đã lưu ·{" "}
+                <b className="text-white/85">{totalKm.toFixed(0)}</b> km
+              </span>
+            </div>
+          )}
           <Link
             href="/upload"
-            className="group inline-flex items-center gap-2 px-8 py-4 rounded-full font-bold bg-gradient-to-r from-accent to-gradient-pink text-neutral-950 shadow-lg shadow-accent/30 hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy focus-ring"
+            className="inline-flex items-center gap-3 pl-6 pr-5 py-3.5 rounded-md font-semibold text-sm uppercase tracking-wide bg-accent text-neutral-950 hover:brightness-105 active:scale-[0.97] transition-all duration-150 ease-snappy focus-ring"
           >
-            <Plus size={18} strokeWidth={2.8} />
             Khởi hành ngay
-            <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            <span aria-hidden="true">→</span>
           </Link>
         </div>
+
+        <RouteIllustration />
       </motion.div>
 
       <div className="w-full max-w-5xl">
-        <div className="flex items-center justify-between mb-4 px-1">
-          <h2 className="text-[11px] text-muted font-medium uppercase tracking-wider">
-            Hành trình gần đây {user ? "(theo tài khoản Google)" : "(lưu trên trình duyệt này)"}
+        <div className="flex items-end justify-between mb-4 px-1">
+          <h2 className="font-display text-lg text-foreground">
+            Hành trình gần đây{" "}
+            <span className="text-sm font-sans text-muted font-normal">
+              {user ? "(theo tài khoản Google)" : "(lưu trên trình duyệt này)"}
+            </span>
           </h2>
           {showTrips && (
             <Link
@@ -113,8 +115,9 @@ export default function Home() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.15 }}
-            className="text-center text-muted text-sm py-10 glass rounded-2xl"
+            className="flex items-center gap-3 text-muted text-sm py-6 border-t border-white/[0.06]"
           >
+            <Route size={16} className="text-accent shrink-0" />
             Chưa có chuyến đi nào. Bấm &ldquo;Khởi hành ngay&rdquo; để bắt đầu.
           </motion.div>
         )}
@@ -139,5 +142,37 @@ export default function Home() {
         <span className="text-xs text-muted">© 2026 Tracking Phượt.</span>
       </footer>
     </DashboardShell>
+  );
+}
+
+// Gives the hero an actual piece of the product to look at instead of empty
+// space beside the headline -- a stylized version of the real route line
+// TripView draws, not a generic icon-in-a-circle or stock illustration.
+function RouteIllustration() {
+  return (
+    <div className="glass rounded-2xl p-6 hidden lg:block" aria-hidden="true">
+      <svg viewBox="0 0 280 200" className="w-full h-auto" fill="none">
+        <path
+          d="M20 170 C 70 170, 60 100, 110 90 S 190 40, 180 20"
+          stroke="var(--accent)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray="1 9"
+        />
+        <path
+          d="M20 170 C 70 170, 60 100, 110 90"
+          stroke="var(--accent)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+        <circle cx="20" cy="170" r="4" fill="var(--accent)" />
+        <circle cx="110" cy="90" r="4" fill="var(--accent)" />
+        <circle cx="180" cy="20" r="4" fill="none" stroke="var(--accent-2)" strokeWidth="2" strokeDasharray="2 2" />
+      </svg>
+      <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.06] text-xs text-muted">
+        <span>Sa Pa → Hà Giang</span>
+        <span className="text-accent font-semibold">312 km</span>
+      </div>
+    </div>
   );
 }

@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { GalleryHorizontal, X } from "lucide-react";
+import { GalleryHorizontal, Images, X } from "lucide-react";
 import { useAuthUser } from "@/lib/use-auth-user";
 import { DashboardShell } from "@/components/DashboardShell";
 import { SignInPrompt } from "@/components/SignInPrompt";
+import { StatusPanel } from "@/components/StatusPanel";
 
 type GalleryPhoto = {
   id: string;
@@ -57,15 +58,13 @@ export default function GalleryPage() {
         <p className="text-muted text-sm mb-8">Toàn bộ ảnh từ các chuyến đi đã lưu vào tài khoản của bạn.</p>
 
         {!loaded ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <StatusPanel>Đang tải...</StatusPanel>
         ) : !user ? (
           <SignInPrompt reason="Gallery tổng hợp ảnh từ mọi chuyến đi trong tài khoản của bạn." />
         ) : photos === null ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <StatusPanel>Đang tải...</StatusPanel>
         ) : photos.length === 0 ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">
-            Chưa có ảnh nào. Tạo chuyến đi đầu tiên để bắt đầu Gallery.
-          </div>
+          <StatusPanel icon={Images}>Chưa có ảnh nào. Tạo chuyến đi đầu tiên để bắt đầu Gallery.</StatusPanel>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pb-10">
             {photos.map((p) => (

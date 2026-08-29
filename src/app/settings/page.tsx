@@ -7,6 +7,7 @@ import { useMyTrips, clearMyTrips } from "@/lib/my-trips";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useDefaultPrivate, setDefaultPrivate } from "@/lib/preferences";
 import { DashboardShell } from "@/components/DashboardShell";
+import { StatusPanel } from "@/components/StatusPanel";
 
 export default function SettingsPage() {
   const { user, loaded } = useAuthUser();
@@ -33,11 +34,11 @@ export default function SettingsPage() {
         </div>
 
         {!loaded ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <StatusPanel>Đang tải...</StatusPanel>
         ) : (
           <div className="flex flex-col gap-4">
             <section className="glass rounded-2xl p-5">
-              <h2 className="text-[11px] text-muted uppercase tracking-wider mb-3 font-semibold">Tài khoản</h2>
+              <h2 className="text-xs text-muted mb-3">Tài khoản</h2>
               {user ? (
                 <div className="flex items-center gap-4">
                   {user.user_metadata?.avatar_url ? (
@@ -74,7 +75,7 @@ export default function SettingsPage() {
             </section>
 
             <section className="glass rounded-2xl p-5">
-              <h2 className="text-[11px] text-muted uppercase tracking-wider mb-3 font-semibold">Mặc định khi tạo chuyến đi mới</h2>
+              <h2 className="text-xs text-muted mb-3">Mặc định khi tạo chuyến đi mới</h2>
               <button
                 onClick={toggleDefaultPrivate}
                 role="switch"
@@ -111,7 +112,7 @@ export default function SettingsPage() {
 
             {!user && localTrips.length > 0 && (
               <section className="glass rounded-2xl p-5">
-                <h2 className="text-[11px] text-muted uppercase tracking-wider mb-3 font-semibold">Dữ liệu cục bộ</h2>
+                <h2 className="text-xs text-muted mb-3">Dữ liệu cục bộ</h2>
                 <button
                   onClick={clearLocalTrips}
                   className="flex items-center gap-3 text-sm text-red-400/80 hover:text-red-400 transition-colors"

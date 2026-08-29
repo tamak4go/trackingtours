@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Map as MlMap, NavigationControl, LngLatBounds } from "maplibre-gl";
-import { Map as MapIcon } from "lucide-react";
+import { Map as MapIcon, Route } from "lucide-react";
 import { MAP_STYLE, ACCENT, ACCENT_GLOW } from "@/lib/map-style";
 import { useAuthUser } from "@/lib/use-auth-user";
 import { DashboardShell } from "@/components/DashboardShell";
 import { SignInPrompt } from "@/components/SignInPrompt";
+import { StatusPanel } from "@/components/StatusPanel";
 
 type RouteTrip = {
   slug: string;
@@ -111,15 +112,13 @@ export default function MapViewPage() {
         <p className="text-muted text-sm mb-6">Toàn bộ lộ trình đã lưu vào tài khoản, trên một bản đồ.</p>
 
         {!loaded ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <StatusPanel>Đang tải...</StatusPanel>
         ) : !user ? (
           <SignInPrompt reason="Map View gộp lộ trình mọi chuyến đi trong tài khoản của bạn lên một bản đồ." />
         ) : trips === null ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <StatusPanel>Đang tải...</StatusPanel>
         ) : trips.length === 0 ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">
-            Chưa có chuyến đi nào có lộ trình để hiển thị.
-          </div>
+          <StatusPanel icon={Route}>Chưa có chuyến đi nào có lộ trình để hiển thị.</StatusPanel>
         ) : (
           <div className="relative w-full flex-1 min-h-[420px] rounded-2xl overflow-hidden glass mb-10">
             {/* Inline style, not the Tailwind `absolute inset-0` classes: maplibre-gl.css

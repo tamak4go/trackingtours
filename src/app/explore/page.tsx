@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Compass } from "lucide-react";
+import { Compass, Route } from "lucide-react";
 import { staggerGrid, staggerItem } from "@/lib/motion";
 import { DashboardShell } from "@/components/DashboardShell";
+import { StatusPanel } from "@/components/StatusPanel";
 import { TripCard, type TripCardData } from "@/components/TripCard";
 
 type ExploreTrip = TripCardData & { shareUrl: string };
@@ -60,11 +61,9 @@ export default function ExplorePage() {
         </div>
 
         {trips === null ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">Đang tải...</div>
+          <StatusPanel>Đang tải...</StatusPanel>
         ) : trips.length === 0 ? (
-          <div className="text-center text-muted text-sm py-16 glass rounded-2xl">
-            Chưa có chuyến đi công khai nào. Hãy là người đầu tiên chia sẻ!
-          </div>
+          <StatusPanel icon={Route}>Chưa có chuyến đi công khai nào. Hãy là người đầu tiên chia sẻ!</StatusPanel>
         ) : (
           <motion.div
             initial="hidden"
