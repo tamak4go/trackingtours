@@ -1858,7 +1858,7 @@ export function TripView({
               <button
                 onClick={() => router.push(`/t/${trip.slug}/story${editToken ? `?edit=${encodeURIComponent(editToken)}` : ""}`)}
                 title="Đọc câu chuyện AI của chuyến đi này"
-                className="hidden sm:flex items-center gap-1 text-on-surface-variant hover:text-primary-container transition-colors bg-surface-glass px-3 py-1.5 rounded-full shrink-0 text-xs"
+                className="flex items-center gap-1 text-on-surface-variant hover:text-primary-container transition-colors bg-surface-glass px-3 py-1.5 rounded-full shrink-0 text-xs"
               >
                 <span className="material-symbols-outlined text-sm">auto_awesome</span>
                 <span className="hidden md:inline">Câu chuyện AI</span>
