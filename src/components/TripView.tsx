@@ -1696,6 +1696,16 @@ export function TripView({
               `sm:col-start-*` pins below make the sm+ grid immune to the same
               bug regardless of which column's content happens to be hidden. */}
           <div className="flex items-center gap-1.5 min-w-0 sm:col-start-1">
+            {canEdit && (
+              <button
+                onClick={() => router.push("/journeys")}
+                title="Về My Journeys"
+                aria-label="Về My Journeys"
+                className="text-on-surface-variant hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy shrink-0"
+              >
+                <span className="material-symbols-outlined text-xl">arrow_back</span>
+              </button>
+            )}
             <span className="material-symbols-outlined text-primary-container text-2xl shrink-0">two_wheeler</span>
             <h1 className="text-sm sm:text-base font-bold tracking-tight truncate">{title || "Chuyến đi phượt"}</h1>
             {canEdit && (
@@ -1855,31 +1865,12 @@ export function TripView({
               </button>
             )}
 
-            {/* hidden below sm: on phones these move into the "..." menu instead
-                (see the moreMenuOpen panel) -- five separate icon buttons plus
-                the stats pill packed into one row left no room for the trip
-                title, which is why it used to disappear entirely on mobile. */}
-            {canEdit && (
-              <button
-                onClick={handleTogglePrivacy}
-                title={isPublic ? "Đang công khai -- bấm để đặt riêng tư" : "Đang riêng tư -- bấm để công khai"}
-                className="hidden sm:flex items-center gap-1 text-on-surface-variant hover:text-on-surface transition-colors bg-surface-glass px-3 py-1.5 rounded-full shrink-0 text-xs"
-              >
-                <span className="material-symbols-outlined text-sm">{isPublic ? "lock_open" : "lock"}</span>
-                <span className="hidden md:inline">{isPublic ? "Công khai" : "Riêng tư"}</span>
-              </button>
-            )}
-
-            {canEdit && (
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="hidden sm:flex items-center gap-1 text-error hover:text-error-container transition-colors bg-surface-glass px-3 py-1.5 rounded-full ml-1 shrink-0 text-xs"
-              >
-                <span className="material-symbols-outlined text-sm">delete</span>
-                <span className="hidden md:inline">{deleting ? "Đang xoá..." : "Xoá"}</span>
-              </button>
-            )}
+            {/* Privacy toggle and delete moved fully into the "..." menu (see
+                moreMenuOpen panel below) -- they used to also live here as
+                standalone desktop pills, but the row had grown too crowded
+                once the AI-story pill and views/likes pill joined it. Both
+                actions are owner-only anyway, so tucking them one tap away
+                behind "..." costs nothing meaningful. */}
           </div>
 
           <AnimatePresence>
@@ -2049,12 +2040,12 @@ export function TripView({
                     )}
                   </>
                 )}
-                {/* Phone-only mirror of the standalone privacy/delete buttons
-                    above (hidden here via sm:hidden since those buttons take
-                    over again once there's enough width, at sm+) -- keeps
-                    them reachable without crowding the header row. */}
+                {/* Privacy toggle + delete now live only here (used to also
+                    have standalone desktop pills in the header row, but that
+                    row got too crowded once the AI-story and views/likes
+                    pills joined it). */}
                 {canEdit && (
-                  <div className="sm:hidden">
+                  <div>
                     <div className="my-1 border-t border-border-glass" />
                     <button
                       onClick={() => {
