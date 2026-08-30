@@ -1781,8 +1781,8 @@ export function TripView({
               <span className="font-mono">{trip.photos.length}</span>
             </div>
 
-            <div className="hidden sm:flex gap-2">
-              <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap">
+            <div className="hidden sm:flex gap-2 shrink-0">
+              <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap shrink-0">
                 <span className="material-symbols-outlined text-sm text-secondary">route</span>
                 <b className="text-on-surface font-mono font-semibold">{trip.distanceKm.toFixed(1)} km</b>
                 <span className="opacity-70">{trip.routeMode === "road" ? "đường thực" : "đường thẳng"}</span>
@@ -1804,7 +1804,7 @@ export function TripView({
                   drops one pill's worth of width/chrome without hiding
                   either stat, unlike the route-mode/recompute pill below
                   which has to stay standalone for its inline retry button. */}
-              <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap">
+              <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap shrink-0">
                 <span className="material-symbols-outlined text-sm text-secondary">schedule</span>
                 <span className="font-mono">{fmtDuration(trip.durationMs)}</span>
                 <span className="opacity-40">·</span>
@@ -1812,7 +1812,7 @@ export function TripView({
                 <span className="font-mono">{trip.photos.length}</span> ảnh
               </div>
               {avgSpeed && (
-                <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap hidden xl:flex">
+                <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap hidden xl:flex shrink-0">
                   <span className="material-symbols-outlined text-sm text-secondary">speed</span>
                   <span className="font-mono">{avgSpeed.toFixed(1)} km/h</span>
                 </div>
