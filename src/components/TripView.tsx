@@ -1835,6 +1835,26 @@ export function TripView({
               </div>
             )}
 
+            {/* Visible to every viewer (not gated on canEdit) whenever a
+                story already exists -- previously this only lived inside
+                the "..." menu gated on canEdit || trip.storyJson, which
+                made it effectively invisible to anyone opening the trip via
+                the plain share link once no story existed yet, and easy to
+                miss even once one did. A share-link visitor should always
+                be able to find and read an existing AI story; only
+                generating/rewriting one stays owner-only (see the "..."
+                menu item below). */}
+            {trip.storyJson && (
+              <button
+                onClick={() => router.push(`/t/${trip.slug}/story${editToken ? `?edit=${encodeURIComponent(editToken)}` : ""}`)}
+                title="Đọc câu chuyện AI của chuyến đi này"
+                className="hidden sm:flex items-center gap-1 text-on-surface-variant hover:text-primary-container transition-colors bg-surface-glass px-3 py-1.5 rounded-full shrink-0 text-xs"
+              >
+                <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                <span className="hidden md:inline">Câu chuyện AI</span>
+              </button>
+            )}
+
             {/* hidden below sm: on phones these move into the "..." menu instead
                 (see the moreMenuOpen panel) -- five separate icon buttons plus
                 the stats pill packed into one row left no room for the trip
@@ -1916,7 +1936,7 @@ export function TripView({
                     {serverRendering ? "Đang xuất trên server..." : "Xuất chuẩn (server)"}
                   </button>
                 )}
-                {storyAvailable && (canEdit || trip.storyJson) && (
+                {storyAvailable && canEdit && (
                   <button
                     onClick={() => {
                       setMoreMenuOpen(false);

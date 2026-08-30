@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
-import { Images, Lock, Route, Trash2 } from "lucide-react";
+import { Images, Link2, Check, Lock, Route, Trash2 } from "lucide-react";
 import type { TripCardData } from "@/components/TripCard";
 
 function fmtDate(iso: string): string {
@@ -26,6 +27,25 @@ export function JourneyCard({
 }) {
   const title = trip.title || `${trip.distanceKm.toFixed(1)} km · ${trip.photoCount} ảnh`;
   const monogram = (trip.title || "").trim().slice(0, 1).toUpperCase();
+  const [copied, setCopied] = useState(false);
+
+  // Built from trip.slug alone (never from `href`, which for an owned
+  // anonymous/local trip carries the ?edit= token) so this can never
+  // accidentally copy the private management link -- only the public,
+  // token-free view link that's safe to post anywhere.
+  async function handleCopyLink(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const url = `${window.location.origin}/t/${trip.slug}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard API unavailable (e.g. insecure context) -- nothing else
+      // to fall back to here, just silently no-op.
+    }
+  }
 
   return (
     <a
@@ -96,6 +116,15 @@ export function JourneyCard({
             <Route size={12} className="text-accent" />
             {trip.distanceKm.toFixed(1)} km
           </span>
+          <button
+            onClick={handleCopyLink}
+            title="Chép link xem (an toàn để chia sẻ công khai)"
+            aria-label="Chép link xem"
+            className="ml-auto flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 text-white/80 backdrop-blur-sm transition-colors hover:text-accent active:scale-95"
+          >
+            {copied ? <Check size={12} className="text-accent" /> : <Link2 size={12} />}
+            <span>{copied ? "Đã chép" : "Chép link"}</span>
+          </button>
         </div>
       </div>
     </a>
