@@ -477,7 +477,7 @@ export function TripView({
       }
     });
 
-    map.addControl(new NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(new NavigationControl({ showCompass: false }), "bottom-right");
 
     map.on("load", () => {
       map.addSource("route-full", {
@@ -1687,7 +1687,7 @@ export function TripView({
         )}
 
         {!renderMode && (
-        <header className="absolute top-4 left-4 right-4 lg:right-[336px] z-30 glass rounded-3xl sm:rounded-full px-4 sm:px-6 py-3 flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center sm:gap-2 transition-all">
+        <header className="absolute top-4 left-4 right-4 lg:right-[336px] z-30 glass rounded-3xl sm:rounded-full px-4 sm:px-6 py-3 flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center sm:gap-4 transition-all">
           {/* Below `sm` this stacks as its own row instead of sharing a CSS Grid
               row with the controls below -- grid auto-placement skips items
               hidden via `display:none` entirely, so with the desktop play/more
@@ -1807,29 +1807,32 @@ export function TripView({
                   <span className="font-mono">{avgSpeed.toFixed(1)} km/h</span>
                 </div>
               )}
-              {firebaseConfigured() && (
-                <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap hidden xl:flex">
-                  <span className="material-symbols-outlined text-sm text-secondary">visibility</span>
-                  <span className="font-mono">{tripStats.views}</span>
-                </div>
-              )}
             </div>
 
+            {/* Views+likes merged into one divided pill (was two separate
+                elements crowding the row right next to the "..." button) --
+                reads as a single social-proof unit instead of loose chrome. */}
             {firebaseConfigured() && (
-              <button
-                onClick={handleLike}
-                disabled={liked}
-                title={liked ? "Bạn đã thả tim chuyến này" : "Thả tim chuyến đi này"}
-                className="hidden sm:flex items-center gap-1 text-on-surface-variant hover:text-error transition-colors bg-surface-glass px-3 py-1.5 rounded-full shrink-0 text-xs disabled:hover:text-error"
-              >
-                <span
-                  className="material-symbols-outlined text-sm"
-                  style={liked ? { fontVariationSettings: "'FILL' 1", color: "var(--color-error)" } : undefined}
-                >
-                  favorite
+              <div className="pill !p-0 text-on-surface-variant text-xs whitespace-nowrap hidden sm:flex shrink-0 overflow-hidden">
+                <span className="flex items-center gap-1 pl-3 pr-2.5">
+                  <span className="material-symbols-outlined text-sm text-secondary">visibility</span>
+                  <span className="font-mono">{tripStats.views}</span>
                 </span>
-                <span className="font-mono">{tripStats.likes}</span>
-              </button>
+                <button
+                  onClick={handleLike}
+                  disabled={liked}
+                  title={liked ? "Bạn đã thả tim chuyến này" : "Thả tim chuyến đi này"}
+                  className="flex items-center gap-1 pl-2.5 pr-3 h-full border-l border-border-glass hover:text-error transition-colors disabled:hover:text-error"
+                >
+                  <span
+                    className="material-symbols-outlined text-sm"
+                    style={liked ? { fontVariationSettings: "'FILL' 1", color: "var(--color-error)" } : undefined}
+                  >
+                    favorite
+                  </span>
+                  <span className="font-mono">{tripStats.likes}</span>
+                </button>
+              </div>
             )}
 
             {/* hidden below sm: on phones these move into the "..." menu instead
