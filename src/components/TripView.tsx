@@ -9,7 +9,6 @@ import { MAP_STYLE, MAP_STYLE_FALLBACK, ACCENT, ACCENT_GLOW, SECONDARY, SECONDAR
 import { compressPhoto } from "@/lib/process-photos";
 import { firebaseConfigured, watchTripStats, recordView, recordLike, hasLiked, type TripStats } from "@/lib/firebase";
 import { googleSheetsExportConfigured, exportTripToGoogleSheets } from "@/lib/google-sheets-export";
-import { STORY_TONES, type StoryTone, type TripStory } from "@/lib/story-types";
 import type { Trip, TripPhoto } from "@/lib/types";
 
 const HEAD_TRAIL_POINTS = 40; // how many recent route points form the bright "comet head" behind the moving marker
@@ -241,10 +240,6 @@ export function TripView({
   // chuyện AI" entirely otherwise, same pattern as tiktokAvailable/
   // renderServiceAvailable above.
   const [storyAvailable, setStoryAvailable] = useState(false);
-  const [storyData, setStoryData] = useState<TripStory | null>(trip.storyJson);
-  const [selectedTone, setSelectedTone] = useState<StoryTone>(trip.storyJson?.tone ?? "enthusiastic");
-  const [storyDismissed, setStoryDismissed] = useState(false);
-  const [generatingStory, setGeneratingStory] = useState(false);
   // Live "lượt xem"/"thả tim" counters (Firestore, see src/lib/firebase.ts)
   // -- both stay at 0 and the like button hides if Firebase isn't configured.
   const [tripStats, setTripStats] = useState<TripStats>({ views: 0, likes: 0 });
@@ -1179,30 +1174,6 @@ export function TripView({
     }
   }
 
-  async function handleGenerateStory(tone: StoryTone = selectedTone) {
-    if (!canEdit || generatingStory) return;
-    setGeneratingStory(true);
-    try {
-      const res = await fetch(tripApiUrl(`/api/trips/${trip.slug}/story`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tone }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setStoryData(data.story as TripStory);
-        setSelectedTone(tone);
-        setStoryDismissed(false);
-      } else {
-        alert(data.error || "Tạo câu chuyện thất bại.");
-      }
-    } catch {
-      alert("Tạo câu chuyện thất bại.");
-    } finally {
-      setGeneratingStory(false);
-    }
-  }
-
   async function handleExportSheets() {
     if (exportingSheets) return;
     setExportingSheets(true);
@@ -1913,20 +1884,17 @@ export function TripView({
                     {serverRendering ? "Đang xuất trên server..." : "Xuất chuẩn (server)"}
                   </button>
                 )}
-                {storyAvailable && canEdit && (
+                {storyAvailable && (canEdit || trip.storyJson) && (
                   <button
                     onClick={() => {
                       setMoreMenuOpen(false);
-                      handleGenerateStory(selectedTone);
+                      router.push(`/t/${trip.slug}/story${editToken ? `?edit=${encodeURIComponent(editToken)}` : ""}`);
                     }}
-                    disabled={generatingStory}
-                    title="Gemini viết một đoạn kể lại chuyến đi từ ảnh và lộ trình"
-                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                    title="Nhật ký hành trình do Gemini viết từ ảnh và lộ trình -- xem ở trang riêng"
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors text-left"
                   >
-                    <span className={`material-symbols-outlined text-lg shrink-0 ${generatingStory ? "animate-spin" : ""}`}>
-                      {generatingStory ? "progress_activity" : "auto_awesome"}
-                    </span>
-                    {generatingStory ? "Đang viết..." : storyData ? "Viết lại câu chuyện AI" : "Tạo câu chuyện AI"}
+                    <span className="material-symbols-outlined text-lg shrink-0">auto_awesome</span>
+                    {trip.storyJson ? "Xem câu chuyện AI" : "Tạo câu chuyện AI"}
                   </button>
                 )}
                 {googleSheetsExportConfigured() && (
@@ -2063,75 +2031,6 @@ export function TripView({
             )}
           </AnimatePresence>
         </header>
-        )}
-
-        {!renderMode && storyData && !storyDismissed && (
-          <div className="absolute top-20 sm:top-24 left-4 right-4 lg:right-[336px] z-20 glass rounded-2xl p-4 max-w-2xl max-h-[70vh] overflow-y-auto">
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="material-symbols-outlined text-primary-container text-lg shrink-0">auto_awesome</span>
-                <h2 className="text-sm font-bold text-on-surface truncate">{storyData.tripTitle}</h2>
-              </div>
-              <button
-                onClick={() => setStoryDismissed(true)}
-                className="text-on-surface-variant hover:text-on-surface transition-colors shrink-0"
-                aria-label="Đóng câu chuyện"
-              >
-                <span className="material-symbols-outlined text-base">close</span>
-              </button>
-            </div>
-
-            <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed mb-3">{storyData.summary}</p>
-
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {storyData.estimatedStats.terrainTypes.map((t) => (
-                <span key={t} className="pill text-[10px] text-secondary">
-                  {t}
-                </span>
-              ))}
-              <span className="pill text-[10px] text-secondary">{storyData.estimatedStats.weatherVibe}</span>
-              <span className="pill text-[10px] text-accent">{storyData.estimatedStats.vibeScore}</span>
-            </div>
-
-            {canEdit && (
-              <div className="flex flex-wrap gap-1.5 mb-4 pb-3 border-b border-border-glass">
-                {(Object.keys(STORY_TONES) as StoryTone[]).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => handleGenerateStory(t)}
-                    disabled={generatingStory}
-                    title="Viết lại với giọng văn này"
-                    className={`text-[11px] px-2.5 py-1 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                      selectedTone === t
-                        ? "bg-accent text-neutral-950 font-semibold"
-                        : "bg-surface-glass text-on-surface-variant hover:text-on-surface"
-                    }`}
-                  >
-                    {STORY_TONES[t].label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-3">
-              {storyData.timeline.map((stop, i) => (
-                <div key={i} className="border-l-2 border-accent/40 pl-3">
-                  <div className="flex items-center gap-1.5 text-[10px] text-secondary font-mono mb-0.5">
-                    <span>{stop.timeOfDay}</span>
-                    <span className="opacity-40">·</span>
-                    <span>{stop.locationGuess}</span>
-                  </div>
-                  <h3 className="text-xs font-semibold text-on-surface mb-1">{stop.stopTitle}</h3>
-                  <p className="text-xs text-on-surface-variant leading-relaxed">{stop.story}</p>
-                  <p className="text-[11px] italic text-primary-container mt-1">&ldquo;{stop.highlightQuote}&rdquo;</p>
-                </div>
-              ))}
-            </div>
-
-            <p className="text-xs text-on-surface-variant leading-relaxed mt-4 pt-3 border-t border-border-glass italic">
-              {storyData.conclusion}
-            </p>
-          </div>
         )}
 
         {canEdit && (

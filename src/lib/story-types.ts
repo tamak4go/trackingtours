@@ -41,6 +41,12 @@ export type TripStoryStop = {
   story: string;
   mood: string;
   highlightQuote: string;
+  // Not part of what Gemini generates -- attached server-side in
+  // api/trips/[slug]/story/route.ts by matching photoIndex back to the
+  // sampled photo's public URL, so the story page can show a real photo per
+  // stop. Optional/undefined for any story generated before this field
+  // existed (still renders fine, just without the image).
+  photoUrl?: string;
 };
 
 export type TripStory = {

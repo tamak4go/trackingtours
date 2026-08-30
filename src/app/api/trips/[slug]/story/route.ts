@@ -80,9 +80,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: "Tạo câu chuyện thất bại, thử lại sau." }, { status: 502 });
   }
 
+  // Gemini only returns photoIndex (0..N-1 into the sample sent above) --
+  // attach the matching photo's real URL here so the story page can show an
+  // actual photo per stop instead of text-only cards.
+  story.timeline = story.timeline.map((stop) => ({ ...stop, photoUrl: photos[stop.photoIndex]?.url }));
+
   // `story` (flat text) stays around for the <meta description> on
   // t/[slug]/page.tsx; `story_json` holds the full structured timeline that
-  // TripView renders.
+  // the dedicated /t/[slug]/story page renders.
   const flatStory = `${story.summary} ${story.conclusion}`.trim();
   const { error: updateErr } = await admin.from("trips").update({ story: flatStory, story_json: story }).eq("id", tripId);
   if (updateErr) {
