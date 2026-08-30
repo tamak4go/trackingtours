@@ -104,6 +104,17 @@ body {
   font-family: var(--font-sans-raw), Arial, Helvetica, sans-serif;
 }
 
+/* TripView's map (src/components/TripView.tsx) puts MapLibre's zoom control
+   at "bottom-right" and, on mobile only, a floating w-14 h-14 photo-gallery
+   button at the same corner (bottom-4 right-4, `lg:hidden`) -- the two would
+   otherwise stack on top of each other. Push the zoom control up clear of
+   the button below the `lg` breakpoint, where the button is visible. */
+@media (max-width: 1023px) {
+  .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+    margin-bottom: 76px;
+  }
+}
+
 /* Redesign: this used to paint two blurred coral/cyan gradient blobs behind
    every page -- the exact "gradient-mesh glow" backdrop that reads as
    generic AI-dashboard filler. Kept as an inert hook (many pages still
