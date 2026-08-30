@@ -48,10 +48,14 @@ export const MAP_STYLE_FALLBACK: StyleSpecification = {
   sources: {
     "fallback-basemap": {
       type: "raster",
+      // CARTO's raster basemaps live under /rastertiles/<style>/... -- a
+      // fallback URL missing that path segment 404s (surfaced as an "API
+      // KEY REQUIRED" watermark tile instead of a real error), leaving
+      // riders stuck on a broken fallback with no visible way to tell why.
       tiles: [
-        "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        "https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png",
+        "https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png",
+        "https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png",
       ],
       tileSize: 256,
       attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; OpenStreetMap contributors',
@@ -69,7 +73,9 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 }
 
-export const ACCENT = "#ff7a45";
+// Mirrors --accent / --accent-2 in globals.css -- kept as literal hex here
+// since MapLibre paint properties can't read a CSS custom property.
+export const ACCENT = "#f5a623";
 export const ACCENT_GLOW = hexToRgba(ACCENT, 0.6);
-export const SECONDARY = "#75d1ff";
+export const SECONDARY = "#2dd4bf";
 export const SECONDARY_GLOW = hexToRgba(SECONDARY, 0.4);

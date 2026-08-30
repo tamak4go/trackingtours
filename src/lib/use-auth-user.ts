@@ -10,13 +10,16 @@ export function useAuthUser(): { user: User | null; loaded: boolean } {
 
   useEffect(() => {
     const supabase = supabaseBrowser();
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-      setLoaded(true);
-    });
+    supabase.auth
+      .getUser()
+      .then(({ data }) => setUser(data.user))
+      .finally(() => setLoaded(true));
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoaded(true);
+    });
     return () => subscription.unsubscribe();
   }, []);
 

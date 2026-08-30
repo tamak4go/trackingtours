@@ -1324,7 +1324,7 @@ export function TripView({
       >
         <div className="shrink-0 w-6 flex flex-col items-center">
           <div
-            className="w-6 h-6 rounded-full bg-gradient-to-br from-primary-container to-gradient-pink text-on-primary-container flex items-center justify-center text-[10px] font-bold"
+            className="w-6 h-6 rounded-full bg-accent text-neutral-950 flex items-center justify-center text-[10px] font-mono font-bold"
             style={isActive ? { boxShadow: "0 0 10px rgba(var(--accent-rgb), 0.5)" } : undefined}
           >
             {i + 1}
@@ -1340,7 +1340,7 @@ export function TripView({
             <NextImage src={p.url} alt={`Ảnh chụp lúc ${fmtTime(p.takenAt)}`} fill sizes="320px" className="object-cover" />
           </div>
           <div className="mt-1.5 flex justify-between items-center">
-            <span className={`text-xs ${isActive ? "text-primary" : "text-on-surface-variant"}`}>{fmtTime(p.takenAt)}</span>
+            <span className={`text-xs font-mono ${isActive ? "text-primary" : "text-on-surface-variant"}`}>{fmtTime(p.takenAt)}</span>
             {canEdit && (
               <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
                 <button
@@ -1473,10 +1473,10 @@ export function TripView({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 12, scale: 0.96 }}
                 transition={{ duration: 0.25 }}
-                className="absolute left-4 bottom-4 w-64 glass rounded-xl p-3 flex flex-col gap-2 cursor-pointer z-10 shadow-xl shadow-black/40"
+                className="absolute left-4 bottom-4 w-64 glass rounded-lg p-3 flex flex-col gap-2 cursor-pointer z-10 shadow-xl shadow-black/40"
                 onClick={() => setLightboxPhoto(stopCard)}
               >
-                <div className="relative w-full h-32 rounded-lg overflow-hidden">
+                <div className="relative w-full h-32 rounded-md overflow-hidden">
                   <motion.img
                     key={stopCard.id}
                     src={stopCard.url}
@@ -1486,7 +1486,7 @@ export function TripView({
                     animate={{ scale: 1.08 }}
                     transition={{ duration: 1.5, ease: "linear" }}
                   />
-                  <span className="absolute bottom-1.5 right-1.5 text-[10px] font-semibold bg-black/60 text-white px-1.5 py-0.5 rounded">
+                  <span className="absolute bottom-1.5 right-1.5 text-[10px] font-mono font-semibold bg-black/60 text-white px-1.5 py-0.5 rounded">
                     {stopCardDistanceKm.toFixed(1)} km
                   </span>
                 </div>
@@ -1497,7 +1497,7 @@ export function TripView({
                   </div>
                 )}
                 <div className="flex justify-between items-center px-0.5">
-                  <span className="text-xs text-on-surface-variant">{fmtTime(stopCard.takenAt)}</span>
+                  <span className="text-xs font-mono text-on-surface-variant">{fmtTime(stopCard.takenAt)}</span>
                   <span className="material-symbols-outlined text-secondary text-sm">photo_camera</span>
                 </div>
                 <span className="text-xs text-secondary font-medium">Chạm để xem ảnh lớn</span>
@@ -1512,23 +1512,23 @@ export function TripView({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 16, scale: 0.96 }}
                 transition={{ type: "spring", damping: 22, stiffness: 260 }}
-                className="absolute left-1/2 bottom-6 -translate-x-1/2 w-72 glass rounded-2xl p-4 flex flex-col items-center gap-3 z-10 shadow-xl shadow-black/40 text-center"
+                className="absolute left-1/2 bottom-6 -translate-x-1/2 w-72 glass rounded-lg p-4 flex flex-col items-center gap-3 z-10 shadow-xl shadow-black/40 text-center"
               >
-                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-primary-container to-gradient-pink flex items-center justify-center">
+                <div className="w-11 h-11 rounded-full bg-accent flex items-center justify-center">
                   <span className="material-symbols-outlined text-neutral-950 text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
                     flag_circle
                   </span>
                 </div>
                 <div>
                   <div className="text-sm font-bold">Hoàn thành hành trình!</div>
-                  <div className="text-xs text-on-surface-variant mt-0.5">
+                  <div className="text-xs font-mono text-on-surface-variant mt-0.5">
                     {trip.distanceKm.toFixed(1)} km · {fmtDuration(trip.durationMs)} · {trip.photos.length} ảnh
                   </div>
                 </div>
                 <div className="flex gap-2 w-full">
                   <button
                     onClick={() => setShowComplete(false)}
-                    className="flex-1 py-2 rounded-full text-xs font-semibold bg-surface-glass border border-border-glass text-on-surface-variant hover:text-on-surface transition-colors"
+                    className="flex-1 py-2 rounded-md text-xs font-semibold bg-surface-glass border border-border-glass text-on-surface-variant hover:text-on-surface transition-colors"
                   >
                     Đóng
                   </button>
@@ -1537,7 +1537,7 @@ export function TripView({
                       setShowComplete(false);
                       playAnimation();
                     }}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-semibold glow-button text-neutral-950"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold glow-button text-neutral-950"
                   >
                     <span className="material-symbols-outlined text-sm">replay</span>
                     Xem lại
@@ -1556,7 +1556,7 @@ export function TripView({
           <aside className="hidden lg:flex flex-col w-80 h-full glass border-l border-border-glass bg-surface-container-low/80 relative z-20">
             <div className="p-4 border-b border-border-glass flex items-center justify-between shrink-0">
               <h3 className="text-sm font-bold">Hành trình ảnh</h3>
-              <span className="text-xs text-on-surface-variant bg-surface-glass px-2 py-1 rounded">{photos.length}</span>
+              <span className="text-xs font-mono text-on-surface-variant bg-surface-glass px-2 py-1 rounded">{photos.length}</span>
             </div>
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">{photos.map(renderPhotoItem)}</div>
           </aside>
@@ -1571,7 +1571,7 @@ export function TripView({
             className="lg:hidden absolute bottom-4 right-4 z-30 glass w-14 h-14 rounded-full flex items-center justify-center shadow-xl shadow-black/40 active:scale-95 transition-transform duration-150 ease-snappy"
           >
             <span className="material-symbols-outlined text-primary-container text-2xl">photo_library</span>
-            <span className="absolute -top-1 -right-1 bg-gradient-to-br from-primary-container to-gradient-pink text-on-primary-container text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 bg-accent text-neutral-950 text-[10px] font-mono font-bold w-5 h-5 rounded-full flex items-center justify-center">
               {trip.photos.length}
             </span>
           </button>
@@ -1606,7 +1606,7 @@ export function TripView({
               onClick={handlePlayButtonClick}
               disabled={!mapReady || !hasRoute}
               title={playLabel}
-              className="glow-button text-neutral-950 text-xs font-bold px-6 py-2 rounded-full flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap focus-ring"
+              className="glow-button text-neutral-950 text-xs font-bold px-6 py-2 rounded-md flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap focus-ring"
             >
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
                 {playIcon}
@@ -1620,7 +1620,7 @@ export function TripView({
               aria-label="Thêm tuỳ chọn"
               aria-haspopup="menu"
               aria-expanded={moreMenuOpen}
-              className="w-9 h-9 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy shrink-0"
+              className="w-9 h-9 rounded-md bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy shrink-0"
             >
               <span className="material-symbols-outlined text-lg">more_horiz</span>
             </button>
@@ -1632,7 +1632,7 @@ export function TripView({
               disabled={!mapReady || !hasRoute}
               aria-label={playLabel}
               title={playLabel}
-              className="md:hidden glow-button text-neutral-950 w-8 h-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 focus-ring"
+              className="md:hidden glow-button text-neutral-950 w-8 h-8 rounded-md flex items-center justify-center shrink-0 disabled:opacity-40 focus-ring"
             >
               <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
                 {playIcon}
@@ -1645,7 +1645,7 @@ export function TripView({
               aria-label="Thêm tuỳ chọn"
               aria-haspopup="menu"
               aria-expanded={moreMenuOpen}
-              className="md:hidden w-8 h-8 rounded-full bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant active:scale-90 transition-all duration-150 ease-snappy shrink-0"
+              className="md:hidden w-8 h-8 rounded-md bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant active:scale-90 transition-all duration-150 ease-snappy shrink-0"
             >
               <span className="material-symbols-outlined text-lg">more_horiz</span>
             </button>
@@ -1656,16 +1656,16 @@ export function TripView({
                 viewed -- with no distance/photo count visible at all. */}
             <div className="pill sm:hidden text-on-surface-variant text-xs gap-1.5 whitespace-nowrap">
               <span className="material-symbols-outlined text-sm text-secondary">route</span>
-              <b className="text-on-surface font-semibold">{trip.distanceKm.toFixed(1)}km</b>
+              <b className="text-on-surface font-mono font-semibold">{trip.distanceKm.toFixed(1)}km</b>
               <span className="opacity-40">·</span>
               <span className="material-symbols-outlined text-sm text-secondary">photo_library</span>
-              {trip.photos.length}
+              <span className="font-mono">{trip.photos.length}</span>
             </div>
 
             <div className="hidden sm:flex gap-2">
               <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap">
                 <span className="material-symbols-outlined text-sm text-secondary">route</span>
-                <b className="text-on-surface font-semibold">{trip.distanceKm.toFixed(1)} km</b>
+                <b className="text-on-surface font-mono font-semibold">{trip.distanceKm.toFixed(1)} km</b>
                 <span className="opacity-70">{trip.routeMode === "road" ? "đường thực" : "đường thẳng"}</span>
                 {canEdit && trip.routeMode === "straight" && (
                   <button
@@ -1687,15 +1687,15 @@ export function TripView({
                   which has to stay standalone for its inline retry button. */}
               <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap">
                 <span className="material-symbols-outlined text-sm text-secondary">schedule</span>
-                {fmtDuration(trip.durationMs)}
+                <span className="font-mono">{fmtDuration(trip.durationMs)}</span>
                 <span className="opacity-40">·</span>
                 <span className="material-symbols-outlined text-sm text-secondary">photo_library</span>
-                {trip.photos.length} ảnh
+                <span className="font-mono">{trip.photos.length}</span> ảnh
               </div>
               {avgSpeed && (
                 <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap hidden xl:flex">
                   <span className="material-symbols-outlined text-sm text-secondary">speed</span>
-                  {avgSpeed.toFixed(1)} km/h
+                  <span className="font-mono">{avgSpeed.toFixed(1)} km/h</span>
                 </div>
               )}
             </div>
@@ -1927,7 +1927,7 @@ export function TripView({
               </div>
               <div className="px-4 pb-3 border-b border-border-glass flex items-center justify-between shrink-0">
                 <h3 className="text-sm font-bold">Hành trình ảnh</h3>
-                <span className="text-xs text-on-surface-variant bg-surface-glass px-2 py-1 rounded">{photos.length}</span>
+                <span className="text-xs font-mono text-on-surface-variant bg-surface-glass px-2 py-1 rounded">{photos.length}</span>
               </div>
               <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">{photos.map(renderPhotoItem)}</div>
             </motion.div>
@@ -1979,7 +1979,7 @@ export function TripView({
               )}
               <div className="glass px-4 py-3 rounded-full flex items-center gap-2 shrink-0">
                 <span className="material-symbols-outlined text-on-surface-variant text-sm">schedule</span>
-                <span className="text-xs text-on-surface-variant">{fmtTime(lightboxPhoto.takenAt)}</span>
+                <span className="text-xs font-mono text-on-surface-variant">{fmtTime(lightboxPhoto.takenAt)}</span>
               </div>
             </div>
           </motion.div>

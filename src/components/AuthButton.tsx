@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { LogOut } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -7,6 +8,7 @@ import { useAuthUser } from "@/lib/use-auth-user";
 
 export function AuthButton() {
   const { user, loaded } = useAuthUser();
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   async function signIn() {
     const supabase = supabaseBrowser();
@@ -38,12 +40,13 @@ export function AuthButton() {
 
   return (
     <div className="flex items-center gap-2">
-      {user.user_metadata?.avatar_url ? (
+      {user.user_metadata?.avatar_url && !avatarFailed ? (
         <Image
           src={user.user_metadata.avatar_url}
           alt=""
           width={36}
           height={36}
+          onError={() => setAvatarFailed(true)}
           className="w-9 h-9 rounded-full border border-white/10"
         />
       ) : (
