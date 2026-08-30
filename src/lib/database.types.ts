@@ -19,6 +19,8 @@ export type Database = {
           user_id: string | null;
           is_public: boolean;
           marker_icon_path: string | null;
+          story: string | null;
+          story_json: unknown | null;
           created_at: string;
         };
         Insert: {
@@ -33,6 +35,8 @@ export type Database = {
           user_id?: string | null;
           is_public?: boolean;
           marker_icon_path?: string | null;
+          story?: string | null;
+          story_json?: unknown | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["trips"]["Insert"]>;

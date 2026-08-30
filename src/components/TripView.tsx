@@ -7,6 +7,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Map as MlMap, Marker, NavigationControl, LngLatBounds, type GeoJSONSource } from "maplibre-gl";
 import { MAP_STYLE, MAP_STYLE_FALLBACK, ACCENT, ACCENT_GLOW, SECONDARY, SECONDARY_GLOW } from "@/lib/map-style";
 import { compressPhoto } from "@/lib/process-photos";
+import { firebaseConfigured, watchTripStats, recordView, recordLike, hasLiked, type TripStats } from "@/lib/firebase";
+import { googleSheetsExportConfigured, exportTripToGoogleSheets } from "@/lib/google-sheets-export";
+import { STORY_TONES, type StoryTone, type TripStory } from "@/lib/story-types";
 import type { Trip, TripPhoto } from "@/lib/types";
 
 const HEAD_TRAIL_POINTS = 40; // how many recent route points form the bright "comet head" behind the moving marker
@@ -234,6 +237,25 @@ export function TripView({
   // deployments that never set up the render service, instead of showing a
   // button that 501s.
   const [renderServiceAvailable, setRenderServiceAvailable] = useState(false);
+  // Whether GEMINI_API_KEY is configured on the server -- hides "Tạo câu
+  // chuyện AI" entirely otherwise, same pattern as tiktokAvailable/
+  // renderServiceAvailable above.
+  const [storyAvailable, setStoryAvailable] = useState(false);
+  const [storyData, setStoryData] = useState<TripStory | null>(trip.storyJson);
+  const [selectedTone, setSelectedTone] = useState<StoryTone>(trip.storyJson?.tone ?? "enthusiastic");
+  const [storyDismissed, setStoryDismissed] = useState(false);
+  const [generatingStory, setGeneratingStory] = useState(false);
+  // Live "lượt xem"/"thả tim" counters (Firestore, see src/lib/firebase.ts)
+  // -- both stay at 0 and the like button hides if Firebase isn't configured.
+  const [tripStats, setTripStats] = useState<TripStats>({ views: 0, likes: 0 });
+  const [liked, setLiked] = useState(() => hasLiked(trip.slug));
+  const [exportingSheets, setExportingSheets] = useState(false);
+  // Set once a Sheets export succeeds -- renders a plain <a> link (a real
+  // anchor click is never popup-blocked, unlike a script-triggered
+  // window.open) so the sheet is always reachable even when the automatic
+  // window.open() attempt above gets silently blocked.
+  const [sheetsUrl, setSheetsUrl] = useState<string | null>(null);
+  const viewRecordedRef = useRef(false);
   // Secondary "..." menu grouping the export-video/TikTok actions -- these
   // used to be individual icon-only buttons crowding the header next to the
   // duration pill with no label, easy to misread as one confusing cluster.
@@ -289,6 +311,21 @@ export function TripView({
       .then((d) => setRenderServiceAvailable(Boolean(d.available)))
       .catch(() => {});
 
+    fetch(`/api/trips/${trip.slug}/story`)
+      .then((r) => r.json())
+      .then((d) => setStoryAvailable(Boolean(d.available)))
+      .catch(() => {});
+
+    // viewRecordedRef guards against React StrictMode's dev-only double
+    // effect invocation (mount -> cleanup -> mount) double-counting a view
+    // on every page load during local testing; harmless in production
+    // where effects only run once, but skews numbers while developing.
+    if (!renderMode && !viewRecordedRef.current) {
+      viewRecordedRef.current = true;
+      recordView(trip.slug).catch(() => {});
+    }
+    const unsubscribeStats = watchTripStats(trip.slug, setTripStats);
+
     // /api/tiktok/callback redirects back here with ?tiktok=connected|error
     // -- surface that once, then strip the param so a refresh doesn't
     // re-show the alert.
@@ -301,8 +338,27 @@ export function TripView({
       const qs = params.toString();
       router.replace(qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
     }
+
+    return () => unsubscribeStats?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // likeInFlightRef guards against a double-click firing twice before React
+  // re-renders with disabled={liked} -- `liked` state alone isn't enough
+  // since state updates batch asynchronously, but a ref mutates immediately.
+  const likeInFlightRef = useRef(false);
+  async function handleLike() {
+    if (liked || likeInFlightRef.current) return;
+    likeInFlightRef.current = true;
+    setLiked(true); // optimistic -- reverted on failure below
+    try {
+      await recordLike(trip.slug);
+    } catch {
+      setLiked(false);
+    } finally {
+      likeInFlightRef.current = false;
+    }
+  }
 
   // Closes the "..." menu on an outside click or Escape. `data-more-menu`
   // marks both trigger buttons and the panel itself, so a click landing on
@@ -548,7 +604,11 @@ export function TripView({
 
     map.jumpTo({ center: coords[0], zoom: Math.max(map.getZoom(), 12) });
 
-    const totalDurationMs = Math.min(Math.max(coords.length * 10, 6000), 25000);
+    // 2x faster marker travel per product request -- the 1500ms pause at
+    // each photo stop below (state.resumeAt) is deliberately NOT scaled by
+    // this, only the travel-between-stops speed.
+    const PLAYBACK_SPEED_MULTIPLIER = 2;
+    const totalDurationMs = Math.min(Math.max(coords.length * 10, 6000), 25000) / PLAYBACK_SPEED_MULTIPLIER;
     const stepMs = totalDurationMs / (coords.length - 1);
 
     const state = {
@@ -1116,6 +1176,55 @@ export function TripView({
       }
     } catch {
       alert("Đổi tên thất bại.");
+    }
+  }
+
+  async function handleGenerateStory(tone: StoryTone = selectedTone) {
+    if (!canEdit || generatingStory) return;
+    setGeneratingStory(true);
+    try {
+      const res = await fetch(tripApiUrl(`/api/trips/${trip.slug}/story`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tone }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStoryData(data.story as TripStory);
+        setSelectedTone(tone);
+        setStoryDismissed(false);
+      } else {
+        alert(data.error || "Tạo câu chuyện thất bại.");
+      }
+    } catch {
+      alert("Tạo câu chuyện thất bại.");
+    } finally {
+      setGeneratingStory(false);
+    }
+  }
+
+  async function handleExportSheets() {
+    if (exportingSheets) return;
+    setExportingSheets(true);
+    setSheetsUrl(null);
+    try {
+      // Don't pre-open any window here -- Google Identity Services opens
+      // its OWN popup for the OAuth consent screen inside
+      // exportTripToGoogleSheets, and that needs the click's full "user
+      // gesture" budget to not get blocked. Grabbing a window first (an
+      // earlier version of this code did) silently starves GIS's own popup
+      // instead -- confirmed via the browser console:
+      // "[GSI_LOGGER]: Failed to open popup window... blocked by the browser".
+      const url = await exportTripToGoogleSheets(
+        title || "Chuyến đi phượt",
+        photos.map((p) => ({ placeName: p.placeName || "", lat: p.lat, lng: p.lng, takenAt: p.takenAt })),
+      );
+      setSheetsUrl(url);
+      window.open(url, "_blank", "noopener,noreferrer"); // best-effort -- may still get blocked this far from the click; the "Mở Google Sheet" link below is the guaranteed fallback
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Xuất Google Sheets thất bại.");
+    } finally {
+      setExportingSheets(false);
     }
   }
 
@@ -1698,7 +1807,30 @@ export function TripView({
                   <span className="font-mono">{avgSpeed.toFixed(1)} km/h</span>
                 </div>
               )}
+              {firebaseConfigured() && (
+                <div className="pill text-on-surface-variant text-xs gap-1.5 whitespace-nowrap hidden xl:flex">
+                  <span className="material-symbols-outlined text-sm text-secondary">visibility</span>
+                  <span className="font-mono">{tripStats.views}</span>
+                </div>
+              )}
             </div>
+
+            {firebaseConfigured() && (
+              <button
+                onClick={handleLike}
+                disabled={liked}
+                title={liked ? "Bạn đã thả tim chuyến này" : "Thả tim chuyến đi này"}
+                className="hidden sm:flex items-center gap-1 text-on-surface-variant hover:text-error transition-colors bg-surface-glass px-3 py-1.5 rounded-full shrink-0 text-xs disabled:hover:text-error"
+              >
+                <span
+                  className="material-symbols-outlined text-sm"
+                  style={liked ? { fontVariationSettings: "'FILL' 1", color: "var(--color-error)" } : undefined}
+                >
+                  favorite
+                </span>
+                <span className="font-mono">{tripStats.likes}</span>
+              </button>
+            )}
 
             {/* hidden below sm: on phones these move into the "..." menu instead
                 (see the moreMenuOpen panel) -- five separate icon buttons plus
@@ -1780,6 +1912,50 @@ export function TripView({
                     </span>
                     {serverRendering ? "Đang xuất trên server..." : "Xuất chuẩn (server)"}
                   </button>
+                )}
+                {storyAvailable && canEdit && (
+                  <button
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      handleGenerateStory(selectedTone);
+                    }}
+                    disabled={generatingStory}
+                    title="Gemini viết một đoạn kể lại chuyến đi từ ảnh và lộ trình"
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                  >
+                    <span className={`material-symbols-outlined text-lg shrink-0 ${generatingStory ? "animate-spin" : ""}`}>
+                      {generatingStory ? "progress_activity" : "auto_awesome"}
+                    </span>
+                    {generatingStory ? "Đang viết..." : storyData ? "Viết lại câu chuyện AI" : "Tạo câu chuyện AI"}
+                  </button>
+                )}
+                {googleSheetsExportConfigured() && (
+                  <button
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      handleExportSheets();
+                    }}
+                    disabled={exportingSheets}
+                    title="Xuất danh sách ảnh (địa danh, toạ độ, thời gian) ra Google Sheets của bạn"
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                  >
+                    <span className={`material-symbols-outlined text-lg shrink-0 ${exportingSheets ? "animate-spin" : ""}`}>
+                      {exportingSheets ? "progress_activity" : "table_view"}
+                    </span>
+                    {exportingSheets ? "Đang xuất..." : "Xuất ra Google Sheets"}
+                  </button>
+                )}
+                {sheetsUrl && (
+                  <a
+                    href={sheetsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setMoreMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-primary-container hover:bg-surface-glass transition-colors text-left"
+                  >
+                    <span className="material-symbols-outlined text-lg shrink-0">open_in_new</span>
+                    Mở Google Sheet vừa tạo
+                  </a>
                 )}
                 {tiktokAvailable &&
                   (tiktokConnected ? (
@@ -1888,6 +2064,76 @@ export function TripView({
           </AnimatePresence>
         </header>
         )}
+
+        {!renderMode && storyData && !storyDismissed && (
+          <div className="absolute top-20 sm:top-24 left-4 right-4 lg:right-[336px] z-20 glass rounded-2xl p-4 max-w-2xl max-h-[70vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="material-symbols-outlined text-primary-container text-lg shrink-0">auto_awesome</span>
+                <h2 className="text-sm font-bold text-on-surface truncate">{storyData.tripTitle}</h2>
+              </div>
+              <button
+                onClick={() => setStoryDismissed(true)}
+                className="text-on-surface-variant hover:text-on-surface transition-colors shrink-0"
+                aria-label="Đóng câu chuyện"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
+            </div>
+
+            <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed mb-3">{storyData.summary}</p>
+
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {storyData.estimatedStats.terrainTypes.map((t) => (
+                <span key={t} className="pill text-[10px] text-secondary">
+                  {t}
+                </span>
+              ))}
+              <span className="pill text-[10px] text-secondary">{storyData.estimatedStats.weatherVibe}</span>
+              <span className="pill text-[10px] text-accent">{storyData.estimatedStats.vibeScore}</span>
+            </div>
+
+            {canEdit && (
+              <div className="flex flex-wrap gap-1.5 mb-4 pb-3 border-b border-border-glass">
+                {(Object.keys(STORY_TONES) as StoryTone[]).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => handleGenerateStory(t)}
+                    disabled={generatingStory}
+                    title="Viết lại với giọng văn này"
+                    className={`text-[11px] px-2.5 py-1 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                      selectedTone === t
+                        ? "bg-accent text-neutral-950 font-semibold"
+                        : "bg-surface-glass text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    {STORY_TONES[t].label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3">
+              {storyData.timeline.map((stop, i) => (
+                <div key={i} className="border-l-2 border-accent/40 pl-3">
+                  <div className="flex items-center gap-1.5 text-[10px] text-secondary font-mono mb-0.5">
+                    <span>{stop.timeOfDay}</span>
+                    <span className="opacity-40">·</span>
+                    <span>{stop.locationGuess}</span>
+                  </div>
+                  <h3 className="text-xs font-semibold text-on-surface mb-1">{stop.stopTitle}</h3>
+                  <p className="text-xs text-on-surface-variant leading-relaxed">{stop.story}</p>
+                  <p className="text-[11px] italic text-primary-container mt-1">&ldquo;{stop.highlightQuote}&rdquo;</p>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed mt-4 pt-3 border-t border-border-glass italic">
+              {storyData.conclusion}
+            </p>
+          </div>
+        )}
+
         {canEdit && (
           <input
             ref={markerIconInputRef}

@@ -1,3 +1,5 @@
+import type { TripStory } from "./story-types";
+
 export type RouteMode = "road" | "straight";
 
 export type TripPhoto = {
@@ -27,6 +29,13 @@ export type Trip = {
   // default" when there's actually something custom to reset.
   markerIconUrl: string | null;
   markerIconIsCustom: boolean;
+  // AI-generated Vietnamese narrative (see src/lib/gemini.ts) -- null until
+  // the owner generates one; feature hidden entirely when GEMINI_API_KEY
+  // isn't configured on the server. `story` is a flat summary+conclusion
+  // string (used for <meta description>); `storyJson` is the full
+  // structured per-stop timeline TripView renders.
+  story: string | null;
+  storyJson: TripStory | null;
 };
 
 export type CreateTripPhotoInput = {

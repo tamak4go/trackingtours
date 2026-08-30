@@ -33,6 +33,15 @@ alter table trips add column if not exists is_public boolean not null default tr
 -- resolved server-side in t/[slug]/page.tsx -- not cached here, so it
 -- always reflects their current avatar without needing a sync job.
 alter table trips add column if not exists marker_icon_path text;
+-- AI-generated Vietnamese narrative of the trip (see src/lib/gemini.ts),
+-- created on demand by the owner from route stats + a sample of photos.
+-- Null until generated; feature is hidden entirely when GEMINI_API_KEY isn't set.
+alter table trips add column if not exists story text;
+-- Structured multi-stop version of the same AI story (see src/lib/gemini.ts
+-- TripStory type) -- `story` above stays a flat summary+conclusion string
+-- for the <meta description>, this holds the full per-stop timeline for
+-- TripView's UI.
+alter table trips add column if not exists story_json jsonb;
 
 create table if not exists photos (
   id uuid primary key default gen_random_uuid(),

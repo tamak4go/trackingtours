@@ -23,7 +23,7 @@ const getTrip = cache(
     const { data: trip } = await admin
       .from("trips")
       .select(
-        "id, slug, title, distance_km, duration_ms, route_mode, route_geojson, user_id, is_public, marker_icon_path, edit_token_hash, created_at",
+        "id, slug, title, distance_km, duration_ms, route_mode, route_geojson, user_id, is_public, marker_icon_path, story, story_json, edit_token_hash, created_at",
       )
       .eq("slug", slug)
       .single();
@@ -72,6 +72,8 @@ const getTrip = cache(
         createdAt: trip.created_at,
         markerIconUrl,
         markerIconIsCustom,
+        story: trip.story,
+        storyJson: (trip.story_json as Trip["storyJson"]) ?? null,
       },
       ownerUserId: trip.user_id,
       editTokenHash: trip.edit_token_hash,
@@ -112,7 +114,8 @@ export async function generateMetadata(props: PageProps<"/t/[slug]">): Promise<M
   const { trip } = found;
 
   const title = `${trip.title || "Chuyến đi phượt"} · Tracking Phượt`;
-  const description = `${trip.distanceKm.toFixed(1)} km · ${trip.photos.length} ảnh — xem lộ trình trên bản đồ.`;
+  const stats = `${trip.distanceKm.toFixed(1)} km · ${trip.photos.length} ảnh — xem lộ trình trên bản đồ.`;
+  const description = trip.story ? `${trip.story.slice(0, 180)}${trip.story.length > 180 ? "…" : ""}` : stats;
   const image = trip.photos[0]?.url;
 
   return {
