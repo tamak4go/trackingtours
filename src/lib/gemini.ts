@@ -10,10 +10,16 @@ import { STORY_TONES, type StoryTone, type TripStory } from "./story-types";
 
 const GENERATE_URL_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 // Tried in order, falling through to the next on any error (network hiccup,
-// 503 overloaded, 429 rate limit) -- gemini-2.5-flash is confirmed working
-// with this project's key; the other two are real fallback models, not
-// guesses, matching the AI Studio companion app's server.ts.
-const CANDIDATE_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"];
+// 503 overloaded, 429 rate limit, or a deprecated/unavailable model).
+// gemini-2.5-flash and gemini-2.5-flash-lite were confirmed working via
+// curl during initial setup but later started 404ing with "no longer
+// available to new users" -- Gemini model availability shifts over time,
+// so this list is verified against a live curl test each time it's
+// touched, not assumed from memory. Verified working as of 2026-08-30:
+// gemini-3.6-flash and gemini-3.1-flash-lite (200); gemini-flash-latest and
+// gemini-3.7-flash were 503/overloaded at that moment but kept as
+// fallbacks since that's transient, not a removal.
+const CANDIDATE_MODELS = ["gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-3.7-flash"];
 
 export function geminiConfigured(): boolean {
   return Boolean(process.env.GEMINI_API_KEY);
