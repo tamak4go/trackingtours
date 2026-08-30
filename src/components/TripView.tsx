@@ -166,6 +166,13 @@ export function TripView({
   // draw them into captureCanvasRef without tainting it (untainted is what
   // lets canvas.captureStream() actually include them in the output).
   const photoImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  // True once every trip photo has finished loading (or failed/timed out) --
+  // Play stays disabled until then. Without this, a fast animation (esp.
+  // after the 2x speed change) can reach a stop card before that photo's
+  // bytes have actually arrived on a slow connection or a trip with many
+  // photos all competing for the browser's ~6 concurrent connections per
+  // host, showing a half-loaded/broken image instead of the real photo.
+  const [photosPreloaded, setPhotosPreloaded] = useState(() => trip.photos.length === 0);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -401,14 +408,32 @@ export function TripView({
   // tainted anyway. Supabase Storage's public bucket URLs already send
   // permissive CORS headers, same as the tile server MAP_STYLE points at.
   useEffect(() => {
+    if (trip.photos.length === 0) return; // photosPreloaded's initial state already covers this case
     const map = new Map<string, HTMLImageElement>();
+    let settled = 0;
+    let cancelled = false;
+    const markSettled = () => {
+      settled++;
+      if (settled >= trip.photos.length && !cancelled) setPhotosPreloaded(true);
+    };
     trip.photos.forEach((p) => {
       const img = new Image();
       img.crossOrigin = "anonymous";
+      img.onload = markSettled;
+      img.onerror = markSettled; // a broken photo shouldn't block Play forever
       img.src = p.url;
       map.set(p.id, img);
     });
     photoImagesRef.current = map;
+    // Safety net -- an unusually slow connection or a stalled request
+    // shouldn't lock Play out indefinitely; whatever has loaded by then
+    // (photoImagesRef, checked per-frame via img.complete) still degrades
+    // gracefully to the placeholder already handled below.
+    const timeout = setTimeout(() => !cancelled && setPhotosPreloaded(true), 10000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
   }, [trip.photos]);
 
   useEffect(() => {
@@ -1344,7 +1369,7 @@ export function TripView({
 
   const avgSpeed = trip.durationMs > 0 ? trip.distanceKm / (trip.durationMs / 3600000) : null;
   const hasRoute = trip.routeCoords.length >= 2;
-  const canPlay = mapReady && !isPlaying && hasRoute;
+  const canPlay = mapReady && !isPlaying && hasRoute && photosPreloaded;
   // Once playing, the same button toggles pause/resume instead of being
   // disabled -- previously it just showed a spinner for the whole
   // animation with no way to stop and look at something mid-route.
@@ -1352,24 +1377,28 @@ export function TripView({
     ? "Đang tải bản đồ..."
     : !hasRoute
       ? "Chưa có lộ trình"
-      : isPlaying
-        ? isPaused
-          ? "Tiếp tục"
-          : "Tạm dừng"
-        : hasPlayed
-          ? "Phát lại"
-          : "Phát animation";
+      : !photosPreloaded
+        ? "Đang tải ảnh..."
+        : isPlaying
+          ? isPaused
+            ? "Tiếp tục"
+            : "Tạm dừng"
+          : hasPlayed
+            ? "Phát lại"
+            : "Phát animation";
   const playIcon = !mapReady
     ? "hourglass_empty"
     : !hasRoute
       ? "block"
-      : isPlaying
-        ? isPaused
-          ? "play_arrow"
-          : "pause"
-        : hasPlayed
-          ? "replay"
-          : "play_arrow";
+      : !photosPreloaded
+        ? "hourglass_empty"
+        : isPlaying
+          ? isPaused
+            ? "play_arrow"
+            : "pause"
+          : hasPlayed
+            ? "replay"
+            : "play_arrow";
   function handlePlayButtonClick() {
     if (!isPlaying) {
       playAnimation();
@@ -1684,7 +1713,7 @@ export function TripView({
           <div className="hidden md:flex items-center justify-center gap-2 sm:col-start-2">
             <button
               onClick={handlePlayButtonClick}
-              disabled={!mapReady || !hasRoute}
+              disabled={!mapReady || !hasRoute || !photosPreloaded}
               title={playLabel}
               className="glow-button text-neutral-950 text-xs font-bold px-6 py-2 rounded-md flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap focus-ring"
             >
@@ -1709,7 +1738,7 @@ export function TripView({
           <div className="flex items-center gap-2 overflow-x-auto min-w-0 sm:col-start-3 sm:justify-end">
             <button
               onClick={handlePlayButtonClick}
-              disabled={!mapReady || !hasRoute}
+              disabled={!mapReady || !hasRoute || !photosPreloaded}
               aria-label={playLabel}
               title={playLabel}
               className="md:hidden glow-button text-neutral-950 w-8 h-8 rounded-md flex items-center justify-center shrink-0 disabled:opacity-40 focus-ring"
