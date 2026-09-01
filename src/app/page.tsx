@@ -56,8 +56,8 @@ export default function Home() {
             <div className="flex items-center gap-1.5 mb-7 text-xs text-white/60">
               <Route size={13} className="text-accent" />
               <span>
-                <b className="text-white/85">{accountTrips!.length}</b> chuyến đi đã lưu ·{" "}
-                <b className="text-white/85">{totalKm.toFixed(0)}</b> km
+                <b className="font-mono tabular-nums text-white/85">{accountTrips!.length}</b> chuyến đi đã lưu ·{" "}
+                <b className="font-mono tabular-nums text-white/85">{totalKm.toFixed(0)}</b> km
               </span>
             </div>
           )}
@@ -135,9 +135,6 @@ export default function Home() {
           <Link href="/privacy" className="text-xs text-muted hover:text-accent-2 transition-colors focus-ring">
             Privacy Policy
           </Link>
-          <span title="Sắp ra mắt" className="text-xs text-muted/60">
-            Road Safety Guide
-          </span>
         </div>
         <span className="text-xs text-muted">© 2026 Tracking Phượt.</span>
       </footer>
@@ -171,7 +168,7 @@ function RouteIllustration() {
       </svg>
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.06] text-xs text-muted">
         <span>Sa Pa → Hà Giang</span>
-        <span className="text-accent font-semibold">312 km</span>
+        <span className="text-accent font-semibold font-mono tabular-nums">312 km</span>
       </div>
     </div>
   );

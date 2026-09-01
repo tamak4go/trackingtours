@@ -48,10 +48,16 @@ export default function HelpPage() {
           ))}
         </div>
 
-        <div className="glass rounded-2xl p-5 flex items-center gap-3">
+        <a
+          href="mailto:ng.tamgame@gmail.com"
+          className="glass rounded-2xl p-5 flex items-center gap-3 hover:bg-white/[0.04] transition-colors focus-ring"
+        >
           <Mail size={18} className="text-accent-2 shrink-0" />
-          <div className="text-sm text-white/60">Vẫn cần hỗ trợ? Kênh liên hệ trực tiếp đang được chuẩn bị -- quay lại sau nhé.</div>
-        </div>
+          <div className="text-sm text-white/60">
+            Vẫn cần hỗ trợ? Gửi email tới{" "}
+            <span className="text-white/85 font-medium">ng.tamgame@gmail.com</span>, mình phản hồi trong 1-2 ngày.
+          </div>
+        </a>
       </div>
     </DashboardShell>
   );

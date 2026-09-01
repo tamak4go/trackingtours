@@ -9,6 +9,11 @@ import { MAP_STYLE, MAP_STYLE_FALLBACK, ACCENT, ACCENT_GLOW, SECONDARY, SECONDAR
 import { compressPhoto } from "@/lib/process-photos";
 import { firebaseConfigured, watchTripStats, recordView, recordLike, hasLiked, type TripStats } from "@/lib/firebase";
 import { googleSheetsExportConfigured, exportTripToGoogleSheets } from "@/lib/google-sheets-export";
+import { useToast } from "@/components/Toast";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { computeFollowCameraTarget, smoothAngle, smoothValue } from "@/lib/camera-follow";
+import { sampleRouteForElevation, fetchElevations, buildElevationProfile, type ElevationProfileData } from "@/lib/elevation";
+import { ElevationProfile } from "@/components/ElevationProfile";
 import type { Trip, TripPhoto } from "@/lib/types";
 
 const HEAD_TRAIL_POINTS = 40; // how many recent route points form the bright "comet head" behind the moving marker
@@ -124,6 +129,20 @@ function buildMotoMarkerEl(iconUrl: string | null): HTMLDivElement {
   return el.firstElementChild as HTMLDivElement;
 }
 
+// Small dot marker shown on the map only while the visitor is hovering the
+// elevation profile chart -- a lightweight "you're pointing here" cue,
+// distinct from the moving ride marker above so the two are never confused.
+function buildElevationHoverMarkerEl(color: string): HTMLDivElement {
+  const el = document.createElement("div");
+  el.style.width = "14px";
+  el.style.height = "14px";
+  el.style.borderRadius = "50%";
+  el.style.background = color;
+  el.style.border = "2px solid rgba(255,255,255,0.9)";
+  el.style.boxShadow = "0 0 0 4px rgba(0,0,0,0.25)";
+  return el;
+}
+
 export function TripView({
   trip,
   editToken,
@@ -148,9 +167,11 @@ export function TripView({
   renderMode: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const movingMarkerRef = useRef<Marker | null>(null);
+  const elevationHoverMarkerRef = useRef<Marker | null>(null);
   const animFrameRef = useRef<number | null>(null);
   // Set by playAnimation(..., "manual") -- see the render-mode effect below.
   const manualStepRef = useRef<((ts: number) => void) | null>(null);
@@ -194,6 +215,10 @@ export function TripView({
   const [stops, setStops] = useState<Stop[]>([]);
   const [lightboxPhoto, setLightboxPhoto] = useState<TripPhoto | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Replaces window.confirm() for the delete action -- a native browser
+  // dialog is jarring against this screen's custom glass/motion chrome and
+  // can't be styled or made keyboard-consistent with the rest of the app.
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [title, setTitle] = useState(trip.title);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   // Edits to a photo's place name are kept as an id -> text overlay instead
@@ -267,6 +292,11 @@ export function TripView({
   // one doesn't touch this tab's map/animation at all, the render service
   // loads its own headless copy of this same page.
   const [serverRendering, setServerRendering] = useState(false);
+  // Fetched lazily from a free elevation API once the map/route are ready --
+  // stays null (chart hidden) if the trip has no usable route or the
+  // fetch fails, same graceful-degradation pattern as renderServiceAvailable
+  // above rather than showing an error for an optional enhancement.
+  const [elevationProfile, setElevationProfile] = useState<ElevationProfileData | null>(null);
 
   // renderMode itself comes in as a prop (see t/[slug]/page.tsx), not from
   // reading window.location here, so it strips the interactive chrome
@@ -318,6 +348,13 @@ export function TripView({
       .then((d) => setStoryAvailable(Boolean(d.available)))
       .catch(() => {});
 
+    if (!renderMode && trip.routeCoords.length >= 2) {
+      const sampled = sampleRouteForElevation(trip.routeCoords);
+      fetchElevations(sampled)
+        .then((rawElevations) => setElevationProfile(buildElevationProfile(sampled, rawElevations)))
+        .catch(() => {}); // Open-Elevation is a free demo instance -- fail silently, chart just stays hidden.
+    }
+
     // viewRecordedRef guards against React StrictMode's dev-only double
     // effect invocation (mount -> cleanup -> mount) double-counting a view
     // on every page load during local testing; harmless in production
@@ -334,8 +371,8 @@ export function TripView({
     const params = new URLSearchParams(window.location.search);
     const tiktokResult = params.get("tiktok");
     if (tiktokResult) {
-      if (tiktokResult === "connected") alert("Đã kết nối TikTok!");
-      else alert("Kết nối TikTok thất bại, thử lại nhé.");
+      if (tiktokResult === "connected") toast("Đã kết nối TikTok!", "success");
+      else toast("Kết nối TikTok thất bại, thử lại nhé.", "error");
       params.delete("tiktok");
       const qs = params.toString();
       router.replace(qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
@@ -390,7 +427,8 @@ export function TripView({
   }, [lightboxPhoto]);
 
   // Escape closes the lightbox and mobile photo sheet too, same keyboard
-  // escape route as the "more" menu above.
+  // escape route as the "more" menu above. The delete-confirm dialog
+  // (ConfirmDialog) owns its own Escape handling and focus management.
   useEffect(() => {
     if (!lightboxPhoto && !mobileSheetOpen) return;
     function closeOnEscape(e: KeyboardEvent) {
@@ -576,6 +614,27 @@ export function TripView({
     map.flyTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 14) });
   }
 
+  // Mirrors elevation-chart hover onto the map as a small dot (see
+  // buildElevationHoverMarkerEl) -- doesn't move the camera, just points out
+  // where on the route that point of the chart corresponds to.
+  function handleElevationHover(index: number | null) {
+    const map = mapRef.current;
+    if (!map || !elevationProfile) return;
+    if (index === null) {
+      elevationHoverMarkerRef.current?.remove();
+      elevationHoverMarkerRef.current = null;
+      return;
+    }
+    const coord = elevationProfile.coords[index];
+    if (!coord) return;
+    if (!elevationHoverMarkerRef.current) {
+      const color = trip.routeMode === "road" ? ACCENT : SECONDARY;
+      elevationHoverMarkerRef.current = new Marker({ element: buildElevationHoverMarkerEl(color) }).setLngLat(coord).addTo(map);
+    } else {
+      elevationHoverMarkerRef.current.setLngLat(coord);
+    }
+  }
+
   // onDone fires exactly once, right when the route finishes playing --
   // used by exportVideo() below to know precisely when to stop recording,
   // without polling isPlaying/showComplete state from outside.
@@ -622,7 +681,20 @@ export function TripView({
     progressSource.setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] }, properties: {} });
     headSource.setData({ type: "Feature", geometry: { type: "LineString", coordinates: [] }, properties: {} });
 
-    map.jumpTo({ center: coords[0], zoom: Math.max(map.getZoom(), 12) });
+    const baseZoom = Math.max(map.getZoom(), 12);
+    map.jumpTo({ center: coords[0], zoom: baseZoom, bearing: 0, pitch: 0 });
+
+    // "Smart camera": turns to face the direction of travel and pulls in
+    // (zoom + pitch) through tight mountain-pass curves, easing back out on
+    // long straights -- see src/lib/camera-follow.ts for the geometry this
+    // is built on and why it's factored out as pure, tested functions
+    // instead of inline here. Entirely camera movement/rotation, which is
+    // exactly what prefers-reduced-motion asks apps to cut -- this JS-driven
+    // MapLibre camera isn't covered by the CSS reduced-motion override in
+    // globals.css, so it's opted out explicitly here instead, falling back
+    // to the old flat top-down follow.
+    const reducedMotion =
+      typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
     // 2x faster marker travel per product request -- the 1500ms pause at
     // each photo stop below (state.resumeAt) is deliberately NOT scaled by
@@ -639,6 +711,9 @@ export function TripView({
       stopPointer: 0,
       pos: coords[0] as [number, number],
       activeStop: null as { photo: TripPhoto; distanceKm: number } | null,
+      cameraBearing: 0,
+      cameraZoom: baseZoom,
+      cameraPitch: 0,
     };
 
     // In manual mode there's no wall clock to schedule against -- the next
@@ -690,7 +765,15 @@ export function TripView({
         properties: {},
       });
       movingMarkerRef.current?.setLngLat(pos);
-      map.jumpTo({ center: pos });
+      if (reducedMotion) {
+        map.jumpTo({ center: pos });
+      } else {
+        const target = computeFollowCameraTarget(coords, state.idx, { baseZoom });
+        state.cameraBearing = smoothAngle(state.cameraBearing, target.bearing, dt, 500);
+        state.cameraZoom = smoothValue(state.cameraZoom, target.zoom, dt, 800);
+        state.cameraPitch = smoothValue(state.cameraPitch, target.pitch, dt, 800);
+        map.jumpTo({ center: pos, bearing: state.cameraBearing, zoom: state.cameraZoom, pitch: state.cameraPitch });
+      }
       const pct = (state.idx / (coords.length - 1)) * 100;
       setProgressPct(pct);
 
@@ -713,6 +796,9 @@ export function TripView({
       if (state.idx >= coords.length - 1) {
         setIsPlaying(false);
         setShowComplete(true);
+        // Hands the map back for free browsing north-up and flat, not stuck
+        // wherever the smart camera last turned/tilted to.
+        if (!reducedMotion) map.easeTo({ bearing: 0, pitch: 0, duration: 600 });
         onDone?.();
         return;
       }
@@ -760,7 +846,7 @@ export function TripView({
   async function recordAnimationVideo(): Promise<Blob | null> {
     if (!canPlay || recording || isPlaying) return null;
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) {
-      alert("Trình duyệt này không hỗ trợ quay video. Thử trên Chrome/Edge (máy tính hoặc Android).");
+      toast("Trình duyệt này không hỗ trợ quay video. Thử trên Chrome/Edge (máy tính hoặc Android).", "error");
       return null;
     }
 
@@ -993,7 +1079,7 @@ export function TripView({
     const canvas = captureCanvasRef.current;
     if (!map || !container || !canvas) return null;
     if (typeof canvas.captureStream !== "function") {
-      alert("Trình duyệt này không hỗ trợ xuất video mượt. Thử 'Xuất nhanh' thay thế.");
+      toast("Trình duyệt này không hỗ trợ xuất video mượt. Thử 'Xuất nhanh' thay thế.", "error");
       return null;
     }
 
@@ -1058,7 +1144,7 @@ export function TripView({
       });
       if (!startRes.ok) {
         const err = await startRes.json().catch(() => ({}));
-        alert(err.error || "Không khởi động được xuất video server.");
+        toast(err.error || "Không khởi động được xuất video server.", "error");
         return;
       }
       const { jobId } = (await startRes.json()) as { jobId: string };
@@ -1070,7 +1156,7 @@ export function TripView({
         await new Promise((r) => setTimeout(r, 2500));
         const statusRes = await fetch(`/api/render-video/${encodeURIComponent(jobId)}`);
         if (!statusRes.ok) {
-          alert("Mất kết nối tới dịch vụ xuất video.");
+          toast("Mất kết nối tới dịch vụ xuất video.", "error");
           return;
         }
         const job = (await statusRes.json()) as { status: string; videoUrl?: string; error?: string };
@@ -1081,13 +1167,13 @@ export function TripView({
           return;
         }
         if (job.status === "error") {
-          alert(job.error || "Xuất video server thất bại.");
+          toast(job.error || "Xuất video server thất bại.", "error");
           return;
         }
         // "queued" | "rendering" -- keep polling.
       }
     } catch {
-      alert("Xuất video server thất bại.");
+      toast("Xuất video server thất bại.", "error");
     } finally {
       setServerRendering(false);
     }
@@ -1121,18 +1207,18 @@ export function TripView({
         body: blob,
       });
       if (res.ok) {
-        alert("Đã gửi video vào TikTok! Mở app TikTok > Hộp thư đến > Bản nháp để hoàn tất đăng.");
+        toast("Đã gửi video vào TikTok! Mở app TikTok > Hộp thư đến > Bản nháp để hoàn tất đăng.", "success");
       } else {
         const err = await res.json().catch(() => ({}));
         if (res.status === 401) {
           setTiktokConnected(false);
-          alert("Phiên TikTok đã hết hạn, hãy kết nối lại.");
+          toast("Phiên TikTok đã hết hạn, hãy kết nối lại.", "error");
         } else {
-          alert(err.error || "Đăng lên TikTok thất bại.");
+          toast(err.error || "Đăng lên TikTok thất bại.", "error");
         }
       }
     } catch {
-      alert("Đăng lên TikTok thất bại.");
+      toast("Đăng lên TikTok thất bại.", "error");
     } finally {
       setPostingTikTok(false);
     }
@@ -1152,21 +1238,26 @@ export function TripView({
     return editToken ? `${path}?token=${encodeURIComponent(editToken)}` : path;
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (!canEdit) return;
-    if (!confirm("Xoá chuyến đi này? Không thể hoàn tác.")) return;
+    setConfirmDeleteOpen(true);
+  }
+
+  async function performDelete() {
     setDeleting(true);
     try {
       const res = await fetch(tripApiUrl(`/api/trips/${trip.slug}`), { method: "DELETE" });
       if (res.ok) {
         router.push("/");
       } else {
-        alert("Xoá thất bại.");
+        toast("Xoá thất bại.", "error");
         setDeleting(false);
+        setConfirmDeleteOpen(false);
       }
     } catch {
-      alert("Xoá thất bại.");
+      toast("Xoá thất bại.", "error");
       setDeleting(false);
+      setConfirmDeleteOpen(false);
     }
   }
 
@@ -1192,10 +1283,10 @@ export function TripView({
       if (res.ok) {
         setTitle(trimmed);
       } else {
-        alert("Đổi tên thất bại.");
+        toast("Đổi tên thất bại.", "error");
       }
     } catch {
-      alert("Đổi tên thất bại.");
+      toast("Đổi tên thất bại.", "error");
     }
   }
 
@@ -1218,7 +1309,7 @@ export function TripView({
       setSheetsUrl(url);
       window.open(url, "_blank", "noopener,noreferrer"); // best-effort -- may still get blocked this far from the click; the "Mở Google Sheet" link below is the guaranteed fallback
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Xuất Google Sheets thất bại.");
+      toast(err instanceof Error ? err.message : "Xuất Google Sheets thất bại.", "error");
     } finally {
       setExportingSheets(false);
     }
@@ -1236,10 +1327,10 @@ export function TripView({
       if (res.ok) {
         setIsPublic(next);
       } else {
-        alert("Đổi chế độ riêng tư thất bại.");
+        toast("Đổi chế độ riêng tư thất bại.", "error");
       }
     } catch {
-      alert("Đổi chế độ riêng tư thất bại.");
+      toast("Đổi chế độ riêng tư thất bại.", "error");
     }
   }
 
@@ -1270,10 +1361,10 @@ export function TripView({
         setMarkerIconIsCustom(true);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Đổi ảnh xe chạy thất bại.");
+        toast(err.error || "Đổi ảnh xe chạy thất bại.", "error");
       }
     } catch {
-      alert("Đổi ảnh xe chạy thất bại.");
+      toast("Đổi ảnh xe chạy thất bại.", "error");
     } finally {
       setUploadingMarkerIcon(false);
     }
@@ -1290,10 +1381,10 @@ export function TripView({
         // same approach handleRecomputeRoute below already uses.
         window.location.reload();
       } else {
-        alert("Đặt lại ảnh mặc định thất bại.");
+        toast("Đặt lại ảnh mặc định thất bại.", "error");
       }
     } catch {
-      alert("Đặt lại ảnh mặc định thất bại.");
+      toast("Đặt lại ảnh mặc định thất bại.", "error");
     }
   }
 
@@ -1309,11 +1400,11 @@ export function TripView({
         window.location.reload();
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Tính lại lộ trình thất bại.");
+        toast(err.error || "Tính lại lộ trình thất bại.", "error");
         setRecomputingRoute(false);
       }
     } catch {
-      alert("Tính lại lộ trình thất bại.");
+      toast("Tính lại lộ trình thất bại.", "error");
       setRecomputingRoute(false);
     }
   }
@@ -1334,11 +1425,11 @@ export function TripView({
       });
       if (!res.ok) {
         setPhotos(prev);
-        alert("Sắp xếp lại ảnh thất bại.");
+        toast("Sắp xếp lại ảnh thất bại.", "error");
       }
     } catch {
       setPhotos(prev);
-      alert("Sắp xếp lại ảnh thất bại.");
+      toast("Sắp xếp lại ảnh thất bại.", "error");
     }
   }
 
@@ -1360,10 +1451,10 @@ export function TripView({
       if (res.ok) {
         setPlaceOverrides((prev) => ({ ...prev, [p.id]: trimmed || null }));
       } else {
-        alert("Cập nhật tên địa điểm thất bại.");
+        toast("Cập nhật tên địa điểm thất bại.", "error");
       }
     } catch {
-      alert("Cập nhật tên địa điểm thất bại.");
+      toast("Cập nhật tên địa điểm thất bại.", "error");
     }
   }
 
@@ -1456,7 +1547,8 @@ export function TripView({
                   onClick={() => movePhoto(i, -1)}
                   disabled={i === 0}
                   title="Chuyển lên trước"
-                  className="w-7 h-7 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-glass disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+                  aria-label="Chuyển ảnh lên trước"
+                  className="w-7 h-7 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-glass disabled:opacity-25 disabled:hover:bg-transparent transition-colors focus-ring"
                 >
                   <span className="material-symbols-outlined text-sm">arrow_upward</span>
                 </button>
@@ -1464,7 +1556,8 @@ export function TripView({
                   onClick={() => movePhoto(i, 1)}
                   disabled={i === photos.length - 1}
                   title="Chuyển xuống sau"
-                  className="w-7 h-7 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-glass disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+                  aria-label="Chuyển ảnh xuống sau"
+                  className="w-7 h-7 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-glass disabled:opacity-25 disabled:hover:bg-transparent transition-colors focus-ring"
                 >
                   <span className="material-symbols-outlined text-sm">arrow_downward</span>
                 </button>
@@ -1637,7 +1730,7 @@ export function TripView({
                 <div className="flex gap-2 w-full">
                   <button
                     onClick={() => setShowComplete(false)}
-                    className="flex-1 py-2 rounded-md text-xs font-semibold bg-surface-glass border border-border-glass text-on-surface-variant hover:text-on-surface transition-colors"
+                    className="flex-1 py-2 rounded-md text-xs font-semibold bg-surface-glass border border-border-glass text-on-surface-variant hover:text-on-surface transition-colors focus-ring"
                   >
                     Đóng
                   </button>
@@ -1646,7 +1739,7 @@ export function TripView({
                       setShowComplete(false);
                       playAnimation();
                     }}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold glow-button text-neutral-950"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold glow-button text-neutral-950 focus-ring"
                   >
                     <span className="material-symbols-outlined text-sm">replay</span>
                     Xem lại
@@ -1677,13 +1770,29 @@ export function TripView({
           <button
             onClick={() => setMobileSheetOpen(true)}
             aria-label={`Xem danh sách ${trip.photos.length} ảnh`}
-            className="lg:hidden absolute bottom-4 right-4 z-30 glass w-14 h-14 rounded-full flex items-center justify-center shadow-xl shadow-black/40 active:scale-95 transition-transform duration-150 ease-snappy"
+            className="lg:hidden absolute bottom-4 right-4 z-30 glass w-14 h-14 rounded-full flex items-center justify-center shadow-xl shadow-black/40 active:scale-95 transition-transform duration-150 ease-snappy focus-ring"
           >
             <span className="material-symbols-outlined text-primary-container text-2xl">photo_library</span>
             <span className="absolute -top-1 -right-1 bg-accent text-neutral-950 text-[10px] font-mono font-bold w-5 h-5 rounded-full flex items-center justify-center">
               {trip.photos.length}
             </span>
           </button>
+        )}
+
+        {/* Hidden during playback/the completion card (both already occupy
+            this same bottom strip) and in render mode (headless export --
+            this is an exploration aid for a real visitor, not part of the
+            video). Fails silently and just never appears if the free
+            elevation API didn't respond -- see the fetch effect above. */}
+        {!renderMode && elevationProfile && !isPlaying && !showComplete && (
+          <div className="absolute left-4 right-4 lg:right-[352px] bottom-24 lg:bottom-4 z-20">
+            <ElevationProfile
+              data={elevationProfile}
+              color={trip.routeMode === "road" ? ACCENT : SECONDARY}
+              glowColor={trip.routeMode === "road" ? ACCENT_GLOW : SECONDARY_GLOW}
+              onHoverIndex={handleElevationHover}
+            />
+          </div>
         )}
 
         {!renderMode && (
@@ -1701,7 +1810,7 @@ export function TripView({
                 onClick={() => router.push("/journeys")}
                 title="Về My Journeys"
                 aria-label="Về My Journeys"
-                className="text-on-surface-variant hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy shrink-0"
+                className="p-2 -m-2 text-on-surface-variant hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy shrink-0 focus-ring"
               >
                 <span className="material-symbols-outlined text-xl">arrow_back</span>
               </button>
@@ -1711,7 +1820,7 @@ export function TripView({
             {canEdit && (
               <button
                 onClick={handleRename}
-                className="text-on-surface-variant hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy shrink-0"
+                className="p-2 -m-2 text-on-surface-variant hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy shrink-0 focus-ring"
                 title="Đổi tên chuyến đi"
                 aria-label="Đổi tên chuyến đi"
               >
@@ -1739,7 +1848,7 @@ export function TripView({
               aria-label="Thêm tuỳ chọn"
               aria-haspopup="menu"
               aria-expanded={moreMenuOpen}
-              className="w-9 h-9 rounded-md bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy shrink-0"
+              className="w-9 h-9 rounded-md bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant hover:text-primary-container active:scale-90 transition-all duration-150 ease-snappy shrink-0 focus-ring"
             >
               <span className="material-symbols-outlined text-lg">more_horiz</span>
             </button>
@@ -1764,7 +1873,7 @@ export function TripView({
               aria-label="Thêm tuỳ chọn"
               aria-haspopup="menu"
               aria-expanded={moreMenuOpen}
-              className="md:hidden w-8 h-8 rounded-md bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant active:scale-90 transition-all duration-150 ease-snappy shrink-0"
+              className="md:hidden w-8 h-8 rounded-md bg-surface-glass border border-border-glass flex items-center justify-center text-on-surface-variant active:scale-90 transition-all duration-150 ease-snappy shrink-0 focus-ring"
             >
               <span className="material-symbols-outlined text-lg">more_horiz</span>
             </button>
@@ -1791,7 +1900,8 @@ export function TripView({
                     onClick={handleRecomputeRoute}
                     disabled={recomputingRoute}
                     title="OSRM có thể đã lỗi lúc tạo chuyến -- thử tính lại đường thực"
-                    className="ml-0.5 text-secondary hover:text-on-surface transition-colors disabled:opacity-40"
+                    aria-label="Tính lại đường thực"
+                    className="ml-0.5 p-1.5 -m-1.5 text-secondary hover:text-on-surface transition-colors disabled:opacity-40 focus-ring rounded"
                   >
                     <span className={`material-symbols-outlined text-sm ${recomputingRoute ? "animate-spin" : ""}`}>
                       {recomputingRoute ? "progress_activity" : "autorenew"}
@@ -1832,7 +1942,7 @@ export function TripView({
                   onClick={handleLike}
                   disabled={liked}
                   title={liked ? "Bạn đã thả tim chuyến này" : "Thả tim chuyến đi này"}
-                  className="flex items-center gap-1 pl-2.5 pr-3 h-full border-l border-border-glass hover:text-error transition-colors disabled:hover:text-error"
+                  className="flex items-center gap-1 pl-2.5 pr-3 h-full border-l border-border-glass hover:text-error transition-colors disabled:hover:text-error focus-ring"
                 >
                   <span
                     className="material-symbols-outlined text-sm"
@@ -1858,7 +1968,7 @@ export function TripView({
               <button
                 onClick={() => router.push(`/t/${trip.slug}/story${editToken ? `?edit=${encodeURIComponent(editToken)}` : ""}`)}
                 title="Đọc câu chuyện AI của chuyến đi này"
-                className="flex items-center gap-1 text-on-surface-variant hover:text-primary-container transition-colors bg-surface-glass px-3 py-1.5 rounded-full shrink-0 text-xs"
+                className="flex items-center gap-1 text-on-surface-variant hover:text-primary-container transition-colors bg-surface-glass px-3 py-1.5 rounded-full shrink-0 text-xs focus-ring"
               >
                 <span className="material-symbols-outlined text-sm">auto_awesome</span>
                 <span className="hidden md:inline">Câu chuyện AI</span>
@@ -1890,7 +2000,7 @@ export function TripView({
                     exportVideo();
                   }}
                   disabled={!canPlay || recording || isPlaying}
-                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
                 >
                   <span className="material-symbols-outlined text-lg shrink-0">
                     {recording ? "fiber_manual_record" : "videocam"}
@@ -1904,7 +2014,7 @@ export function TripView({
                   }}
                   disabled={!canPlay || recording || isPlaying}
                   title="Không xin quyền chia sẻ màn hình, không bị giật do máy/tab đang bận việc khác"
-                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
                 >
                   <span className="material-symbols-outlined text-lg shrink-0">
                     {recording ? "fiber_manual_record" : "auto_awesome_motion"}
@@ -1919,7 +2029,7 @@ export function TripView({
                     }}
                     disabled={!canPlay || serverRendering}
                     title="Render trên server, không phụ thuộc máy/mạng của bạn -- chậm hơn nhưng luôn ra kết quả giống nhau"
-                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
                   >
                     <span className={`material-symbols-outlined text-lg shrink-0 ${serverRendering ? "animate-spin" : ""}`}>
                       {serverRendering ? "progress_activity" : "cloud_done"}
@@ -1934,7 +2044,7 @@ export function TripView({
                       router.push(`/t/${trip.slug}/story${editToken ? `?edit=${encodeURIComponent(editToken)}` : ""}`);
                     }}
                     title="Nhật ký hành trình do Gemini viết từ ảnh và lộ trình -- xem ở trang riêng"
-                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors text-left"
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors text-left focus-ring"
                   >
                     <span className="material-symbols-outlined text-lg shrink-0">auto_awesome</span>
                     {trip.storyJson ? "Xem câu chuyện AI" : "Tạo câu chuyện AI"}
@@ -1948,7 +2058,7 @@ export function TripView({
                     }}
                     disabled={exportingSheets}
                     title="Xuất danh sách ảnh (địa danh, toạ độ, thời gian) ra Google Sheets của bạn"
-                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
                   >
                     <span className={`material-symbols-outlined text-lg shrink-0 ${exportingSheets ? "animate-spin" : ""}`}>
                       {exportingSheets ? "progress_activity" : "table_view"}
@@ -1962,7 +2072,7 @@ export function TripView({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setMoreMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-primary-container hover:bg-surface-glass transition-colors text-left"
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-primary-container hover:bg-surface-glass transition-colors text-left focus-ring"
                   >
                     <span className="material-symbols-outlined text-lg shrink-0">open_in_new</span>
                     Mở Google Sheet vừa tạo
@@ -1978,7 +2088,7 @@ export function TripView({
                         }}
                         disabled={!canPlay || recording || isPlaying || postingTikTok}
                         title="Đăng lên TikTok -- vào Bản nháp trong app TikTok để hoàn tất"
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-[#ff0050] hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-[#ff0050] hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
                       >
                         {postingTikTok ? (
                           <span className="material-symbols-outlined text-lg shrink-0 animate-spin">progress_activity</span>
@@ -1992,7 +2102,7 @@ export function TripView({
                           setMoreMenuOpen(false);
                           disconnectTikTok();
                         }}
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-error hover:bg-surface-glass transition-colors text-left"
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-error hover:bg-surface-glass transition-colors text-left focus-ring"
                       >
                         <span className="material-symbols-outlined text-lg shrink-0">link_off</span>
                         Ngắt kết nối TikTok
@@ -2004,7 +2114,7 @@ export function TripView({
                         setMoreMenuOpen(false);
                         connectTikTok();
                       }}
-                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-[#ff0050] hover:bg-surface-glass transition-colors text-left"
+                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-[#ff0050] hover:bg-surface-glass transition-colors text-left focus-ring"
                     >
                       <TikTokIcon className="shrink-0" />
                       Kết nối TikTok
@@ -2019,7 +2129,7 @@ export function TripView({
                         markerIconInputRef.current?.click();
                       }}
                       disabled={uploadingMarkerIcon}
-                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
                     >
                       <span className={`material-symbols-outlined text-lg shrink-0 ${uploadingMarkerIcon ? "animate-spin" : ""}`}>
                         {uploadingMarkerIcon ? "progress_activity" : "add_a_photo"}
@@ -2032,7 +2142,7 @@ export function TripView({
                           setMoreMenuOpen(false);
                           handleResetMarkerIcon();
                         }}
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors text-left"
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors text-left focus-ring"
                       >
                         <span className="material-symbols-outlined text-lg shrink-0">restart_alt</span>
                         Dùng ảnh mặc định
@@ -2052,7 +2162,7 @@ export function TripView({
                         setMoreMenuOpen(false);
                         handleTogglePrivacy();
                       }}
-                      className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors text-left"
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors text-left focus-ring"
                     >
                       <span className="material-symbols-outlined text-lg shrink-0">{isPublic ? "lock_open" : "lock"}</span>
                       {isPublic ? "Đang công khai -- đặt riêng tư" : "Đang riêng tư -- đặt công khai"}
@@ -2063,7 +2173,7 @@ export function TripView({
                         handleDelete();
                       }}
                       disabled={deleting}
-                      className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-error hover:text-error-container hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-error hover:text-error-container hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
                     >
                       <span className="material-symbols-outlined text-lg shrink-0">delete</span>
                       {deleting ? "Đang xoá..." : "Xoá chuyến đi"}
@@ -2156,7 +2266,7 @@ export function TripView({
                 <button
                   onClick={() => handleEditPlaceName(lightboxPhoto)}
                   disabled={!canEdit}
-                  className="glass px-4 py-3 rounded-full flex items-center gap-2 disabled:cursor-default"
+                  className="glass px-4 py-3 rounded-full flex items-center gap-2 disabled:cursor-default focus-ring"
                 >
                   <span className="material-symbols-outlined text-primary-container text-sm">location_on</span>
                   <span className="text-xs text-on-surface max-w-[40vw] truncate">
@@ -2173,6 +2283,18 @@ export function TripView({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="Xoá chuyến đi này?"
+        description="Không thể hoàn tác."
+        confirmLabel="Xoá chuyến đi"
+        pendingLabel="Đang xoá..."
+        pending={deleting}
+        icon={<span className="material-symbols-outlined text-xl">delete</span>}
+        onConfirm={performDelete}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </div>
   );
 }
