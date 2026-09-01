@@ -40,25 +40,25 @@ export const MAP_STYLE: StyleSpecification = {
 
 // Fallback used when the primary Esri source errors or hangs (critique:
 // riders on weak rural connections hit this in the field, and the old
-// "retry" just recreated the map against the same failing source). CARTO's
-// free raster basemap is a different origin/CDN entirely, so a primary
-// outage is unlikely to take both down at once. Standard {z}/{x}/{y} order.
+// "retry" just recreated the map against the same failing source). Needs a
+// different origin/CDN than Esri so a primary outage is unlikely to take
+// both down at once. Previously CARTO's raster basemap -- CARTO stopped
+// serving anonymous raster tiles without an API key (every tile now comes
+// back as a 200 "API KEY REQUIRED" watermark image, not an error MapLibre
+// can detect, so the fallback silently "succeeded" into a broken map).
+// OSM's own tile servers need no key and never have. Standard {z}/{x}/{y}.
 export const MAP_STYLE_FALLBACK: StyleSpecification = {
   version: 8,
   sources: {
     "fallback-basemap": {
       type: "raster",
-      // CARTO's raster basemaps live under /rastertiles/<style>/... -- a
-      // fallback URL missing that path segment 404s (surfaced as an "API
-      // KEY REQUIRED" watermark tile instead of a real error), leaving
-      // riders stuck on a broken fallback with no visible way to tell why.
       tiles: [
-        "https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png",
-        "https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png",
-        "https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png",
+        "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
       ],
       tileSize: 256,
-      attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; OpenStreetMap contributors',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     },
   },
   layers: [{ id: "fallback-basemap-layer", type: "raster", source: "fallback-basemap" }],
