@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { Route, Lock, Trash2 } from "lucide-react";
 
@@ -22,6 +23,12 @@ function fmtDate(iso: string): string {
 // button that unlists the trip locally (see removeMyTrip) -- it never
 // deletes the trip itself, only anonymous/local trips have a use for it.
 export function TripCard({ trip, href, onRemove }: { trip: TripCardData; href: string; onRemove?: () => void }) {
+  // Cover photos come from Supabase + Next's image optimizer, which can take
+  // a beat -- without this the tile sits on the plain bg-white/[0.04] fill
+  // (indistinguishable from "no cover photo") until the image pops in with
+  // no transition. Fading it in over a pulsing placeholder makes that wait
+  // read as "loading" instead of "broken".
+  const [loaded, setLoaded] = useState(false);
   return (
     <a
       href={href}
@@ -29,13 +36,17 @@ export function TripCard({ trip, href, onRemove }: { trip: TripCardData; href: s
     >
       <div className="h-32 bg-white/[0.04] relative overflow-hidden shrink-0">
         {trip.photoUrl ? (
-          <Image
-            src={trip.photoUrl}
-            alt=""
-            fill
-            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
-          />
+          <>
+            {!loaded && <div className="absolute inset-0 animate-pulse bg-white/[0.06]" />}
+            <Image
+              src={trip.photoUrl}
+              alt=""
+              fill
+              sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+              onLoad={() => setLoaded(true)}
+              className={`object-cover group-hover:scale-105 transition-all duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+            />
+          </>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Route size={26} className="text-white/15" />

@@ -61,7 +61,20 @@ export default function ExplorePage() {
         </div>
 
         {trips === null ? (
-          <StatusPanel>Đang tải...</StatusPanel>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pb-10">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="glass rounded-2xl overflow-hidden flex flex-col animate-pulse">
+                <div className="h-32 bg-white/[0.06]" />
+                <div className="p-3.5 flex flex-col gap-2">
+                  <div className="h-4 w-2/3 rounded bg-white/[0.06]" />
+                  <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                    <div className="h-3 w-16 rounded bg-white/[0.06]" />
+                    <div className="h-3 w-12 rounded bg-white/[0.06]" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : trips.length === 0 ? (
           <StatusPanel icon={Route}>Chưa có chuyến đi công khai nào. Hãy là người đầu tiên chia sẻ!</StatusPanel>
         ) : (
