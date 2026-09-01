@@ -5,6 +5,7 @@ import Link from "next/link";
 import NextImage from "next/image";
 import type { Trip } from "@/lib/types";
 import { STORY_TONES, type StoryTone, type TripStory } from "@/lib/story-types";
+import { useToast } from "@/components/Toast";
 
 // Dedicated full-page reading view for the AI-generated trip journal --
 // pulled out of TripView's small map-overlay panel into its own route
@@ -19,6 +20,7 @@ export function StoryView({ trip, editToken, canEdit }: { trip: Trip; editToken:
   const [storyData, setStoryData] = useState<TripStory | null>(trip.storyJson);
   const [selectedTone, setSelectedTone] = useState<StoryTone>(trip.storyJson?.tone ?? "enthusiastic");
   const [generatingStory, setGeneratingStory] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     fetch(`/api/trips/${trip.slug}/story`)
@@ -45,10 +47,10 @@ export function StoryView({ trip, editToken, canEdit }: { trip: Trip; editToken:
         setStoryData(data.story as TripStory);
         setSelectedTone(tone);
       } else {
-        alert(data.error || "Tạo câu chuyện thất bại.");
+        toast(data.error || "Tạo câu chuyện thất bại.", "error");
       }
     } catch {
-      alert("Tạo câu chuyện thất bại.");
+      toast("Tạo câu chuyện thất bại.", "error");
     } finally {
       setGeneratingStory(false);
     }

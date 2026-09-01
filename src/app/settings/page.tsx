@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { Settings as SettingsIcon, Lock, LogOut, Trash2 } from "lucide-react";
 import { useAuthUser } from "@/lib/use-auth-user";
@@ -8,19 +9,21 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useDefaultPrivate, setDefaultPrivate } from "@/lib/preferences";
 import { DashboardShell } from "@/components/DashboardShell";
 import { StatusPanel } from "@/components/StatusPanel";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export default function SettingsPage() {
   const { user, loaded } = useAuthUser();
   const localTrips = useMyTrips();
   const defaultPrivate = useDefaultPrivate();
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
   function toggleDefaultPrivate() {
     setDefaultPrivate(!defaultPrivate);
   }
 
   function clearLocalTrips() {
-    if (!confirm("Bỏ toàn bộ chuyến đi khỏi danh sách trên trình duyệt này? (Các chuyến đi vẫn còn nguyên trên server.)")) return;
     clearMyTrips();
+    setConfirmClearOpen(false);
   }
 
   const displayName = (user?.user_metadata?.full_name as string | undefined) || null;
@@ -114,7 +117,7 @@ export default function SettingsPage() {
               <section className="glass rounded-2xl p-5">
                 <h2 className="text-xs text-muted mb-3">Dữ liệu cục bộ</h2>
                 <button
-                  onClick={clearLocalTrips}
+                  onClick={() => setConfirmClearOpen(true)}
                   className="flex items-center gap-3 text-sm text-red-400/80 hover:text-red-400 transition-colors"
                 >
                   <Trash2 size={16} />
@@ -125,6 +128,16 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmClearOpen}
+        title={`Bỏ ${localTrips.length} chuyến đi khỏi danh sách này?`}
+        description="Các chuyến đi vẫn còn nguyên trên server, chỉ bỏ khỏi danh sách trên trình duyệt này."
+        confirmLabel="Bỏ khỏi danh sách"
+        icon={<Trash2 size={18} />}
+        onConfirm={clearLocalTrips}
+        onCancel={() => setConfirmClearOpen(false)}
+      />
     </DashboardShell>
   );
 }

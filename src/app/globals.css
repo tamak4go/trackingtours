@@ -38,6 +38,10 @@
   --color-muted: rgba(255, 255, 255, 0.58);
   --font-sans: var(--font-sans-raw);
   --font-display: var(--font-display-raw);
+  /* Data-only type role (km, ngày giờ, toạ độ) -- see layout.tsx for why it
+     skips the "vietnamese" subset. Turns on `font-mono` as a Tailwind
+     utility. */
+  --font-mono: var(--font-mono-raw);
 
   /* Motion tokens -- Tailwind v4 turns a "--ease-NAME" theme var into an
      "ease-NAME" utility class. Punchier than the built-in CSS easings on

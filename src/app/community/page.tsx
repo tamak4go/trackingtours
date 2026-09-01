@@ -79,7 +79,7 @@ function StatTile({ icon: Icon, label, value }: { icon: typeof Route; label: str
   return (
     <div className="glass rounded-2xl p-4 flex flex-col gap-2">
       <Icon size={16} className="text-accent" />
-      <span className="text-xl font-bold text-white/90">{value}</span>
+      <span className="text-xl font-bold font-mono tabular-nums text-white/90">{value}</span>
       <span className="text-[11px] text-muted">{label}</span>
     </div>
   );

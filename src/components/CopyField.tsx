@@ -24,7 +24,7 @@ export function CopyField({ label, value }: { label: string; value: string }) {
           readOnly
           value={value}
           onFocus={(e) => e.currentTarget.select()}
-          className="flex-1 min-w-0 bg-black/30 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white/80 focus:outline-none focus:border-accent/50 transition-colors"
+          className="flex-1 min-w-0 bg-black/30 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white/80 focus:outline-none focus:border-accent/50 transition-colors focus-ring"
         />
         <button
           onClick={copy}

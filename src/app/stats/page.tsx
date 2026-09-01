@@ -88,11 +88,11 @@ export default function StatsPage() {
                     {longest.title || `${longest.distanceKm.toFixed(1)} km · ${longest.photoCount} ảnh`}
                   </div>
                 </div>
-                <div className="text-accent font-bold text-lg">{longest.distanceKm.toFixed(1)} km</div>
+                <div className="text-accent font-bold font-mono tabular-nums text-lg">{longest.distanceKm.toFixed(1)} km</div>
               </Link>
             )}
 
-            <div className="text-xs text-muted mb-3">Số chuyến đi: {trips.length}</div>
+            <div className="text-xs text-muted mb-3 font-mono tabular-nums">Số chuyến đi: {trips.length}</div>
           </>
         )}
       </div>
@@ -104,7 +104,7 @@ function StatTile({ icon: Icon, label, value }: { icon: typeof Route; label: str
   return (
     <div className="glass rounded-2xl p-4 flex flex-col gap-2">
       <Icon size={16} className="text-accent" />
-      <span className="text-xl font-bold text-white/90">{value}</span>
+      <span className="text-xl font-bold font-mono tabular-nums text-white/90">{value}</span>
       <span className="text-[11px] text-muted">{label}</span>
     </div>
   );

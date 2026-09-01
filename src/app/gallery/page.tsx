@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
@@ -22,6 +22,7 @@ export default function GalleryPage() {
   const { user, loaded } = useAuthUser();
   const [photos, setPhotos] = useState<GalleryPhoto[] | null>(null);
   const [active, setActive] = useState<GalleryPhoto | null>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -48,6 +49,12 @@ export default function GalleryPage() {
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [active]);
 
+  // Same focus-on-open pattern as the lightbox in TripView -- a dialog that
+  // never receives focus is invisible to keyboard/screen-reader users.
+  useEffect(() => {
+    if (active) closeRef.current?.focus();
+  }, [active]);
+
   return (
     <DashboardShell active="gallery">
       <div className="w-full max-w-5xl mt-10 sm:mt-14">
@@ -71,7 +78,7 @@ export default function GalleryPage() {
               <button
                 key={p.id}
                 onClick={() => setActive(p)}
-                className="group relative aspect-square rounded-xl overflow-hidden bg-white/[0.04]"
+                className="group relative aspect-square rounded-xl overflow-hidden bg-white/[0.04] focus-ring"
               >
                 <Image
                   src={p.url}
@@ -99,6 +106,9 @@ export default function GalleryPage() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
+              role="dialog"
+              aria-modal="true"
+              aria-label={active.tripTitle || "Xem ảnh"}
               className="max-w-3xl w-full flex flex-col items-center gap-3"
               onClick={(e) => e.stopPropagation()}
             >
@@ -108,9 +118,10 @@ export default function GalleryPage() {
                   {active.tripTitle || "Xem chuyến đi"} →
                 </Link>
                 <button
+                  ref={closeRef}
                   onClick={() => setActive(null)}
                   aria-label="Đóng ảnh"
-                  className="p-2 -m-2 text-white/50 hover:text-white active:scale-90 transition-all duration-150 ease-snappy"
+                  className="p-2 -m-2 text-white/50 hover:text-white active:scale-90 transition-all duration-150 ease-snappy focus-ring"
                 >
                   <X size={18} />
                 </button>

@@ -86,7 +86,7 @@ export default function JourneysPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Tìm theo tên chuyến đi..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-full bg-white/[0.04] border border-white/10 text-sm text-white/90 placeholder:text-muted focus:outline-none focus:border-accent/50 transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 rounded-full bg-white/[0.04] border border-white/10 text-sm text-white/90 placeholder:text-muted focus:outline-none focus:border-accent/50 transition-colors focus-ring"
             />
           </div>
           <div className="flex gap-2">
@@ -102,8 +102,8 @@ export default function JourneysPage() {
                 onClick={() => setSort(opt.key)}
                 className={
                   sort === opt.key
-                    ? "px-4 py-2.5 rounded-full text-xs font-semibold bg-accent/20 text-accent border border-accent/40 active:scale-95 transition-transform duration-150 ease-snappy"
-                    : "px-4 py-2.5 rounded-full text-xs font-semibold bg-white/[0.04] text-white/50 border border-white/10 hover:text-white/80 active:scale-95 transition-all duration-150 ease-snappy"
+                    ? "px-4 py-2.5 rounded-full text-xs font-semibold bg-accent/20 text-accent border border-accent/40 active:scale-95 transition-transform duration-150 ease-snappy focus-ring"
+                    : "px-4 py-2.5 rounded-full text-xs font-semibold bg-white/[0.04] text-white/50 border border-white/10 hover:text-white/80 active:scale-95 transition-all duration-150 ease-snappy focus-ring"
                 }
               >
                 {opt.label}

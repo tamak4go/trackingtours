@@ -68,8 +68,8 @@ export function TripCard({ trip, href, onRemove }: { trip: TripCardData; href: s
           {trip.title || `${trip.distanceKm.toFixed(1)} km · ${trip.photoCount} ảnh`}
         </span>
         <div className="flex items-center justify-between text-[11px] text-muted pt-2 border-t border-white/10">
-          <span>{fmtDate(trip.createdAt)}</span>
-          <span className="flex items-center gap-1">
+          <span className="font-mono tabular-nums">{fmtDate(trip.createdAt)}</span>
+          <span className="flex items-center gap-1 font-mono tabular-nums">
             <Route size={12} />
             {trip.distanceKm.toFixed(1)} km
           </span>

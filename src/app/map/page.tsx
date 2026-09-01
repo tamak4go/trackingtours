@@ -134,7 +134,7 @@ export default function MapViewPage() {
                 className="absolute bottom-4 left-4 glass rounded-xl px-4 py-2.5 text-sm z-10 pointer-events-none"
               >
                 <div className="font-semibold text-white/90">{hoveredTrip.title || "Chuyến đi"}</div>
-                <div className="text-white/50 text-xs">{hoveredTrip.distanceKm.toFixed(1)} km</div>
+                <div className="text-white/50 text-xs font-mono tabular-nums">{hoveredTrip.distanceKm.toFixed(1)} km</div>
               </Link>
             )}
           </div>

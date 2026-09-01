@@ -524,7 +524,7 @@ export default function UploadPage() {
                       transition={{ duration: 0.25 }}
                     />
                   </div>
-                  <div className="text-xs text-muted mt-2 tabular-nums mb-4">
+                  <div className="text-xs text-muted mt-2 font-mono tabular-nums mb-4">
                     {progress.done}/{progress.total}
                   </div>
                   <button

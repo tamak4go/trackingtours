@@ -51,8 +51,8 @@ export default function ExplorePage() {
               onClick={() => setSort(opt.key)}
               className={
                 sort === opt.key
-                  ? "px-4 py-2.5 rounded-full text-xs font-semibold bg-accent/20 text-accent border border-accent/40 active:scale-95 transition-transform duration-150 ease-snappy"
-                  : "px-4 py-2.5 rounded-full text-xs font-semibold bg-white/[0.04] text-white/50 border border-white/10 hover:text-white/80 active:scale-95 transition-all duration-150 ease-snappy"
+                  ? "px-4 py-2.5 rounded-full text-xs font-semibold bg-accent/20 text-accent border border-accent/40 active:scale-95 transition-transform duration-150 ease-snappy focus-ring"
+                  : "px-4 py-2.5 rounded-full text-xs font-semibold bg-white/[0.04] text-white/50 border border-white/10 hover:text-white/80 active:scale-95 transition-all duration-150 ease-snappy focus-ring"
               }
             >
               {opt.label}

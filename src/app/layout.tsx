@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Plus_Jakarta_Sans } from "next/font/google";
+import { Fraunces, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { ToastProvider } from "@/components/Toast";
 import "./globals.css";
 
 // Display serif for headlines only -- distinctive, editorial, not another
@@ -20,6 +21,17 @@ const jakarta = Plus_Jakarta_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
+// Third type role, data only -- km/toạ độ/ngày giờ never carry Vietnamese
+// diacritics, so no "vietnamese" subset needed here. Gives GPS-derived
+// numbers a distinct, instrument-like register instead of sharing the
+// headline/body sans (ui-ux-pro-max `number-tabular`: tabular figures for
+// data so columns of stats don't visually drift as digits change width).
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono-raw",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
 export const metadata: Metadata = {
   title: "Tracking Phượt",
   description: "Tính lộ trình phượt từ vị trí GPS trong ảnh và chia sẻ qua link",
@@ -37,7 +49,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="vi"
-      className={`${fraunces.variable} ${jakarta.variable} h-full antialiased`}
+      className={`${fraunces.variable} ${jakarta.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <head>
         {/* Icon font used by the trip share screen (Material Symbols). */}
@@ -46,7 +58,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }

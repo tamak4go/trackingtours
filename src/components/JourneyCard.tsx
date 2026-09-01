@@ -111,8 +111,8 @@ export function JourneyCard({
       <div className="relative mt-auto flex flex-col gap-1.5 p-4 sm:p-5">
         <h3 className="truncate text-2xl font-extrabold tracking-tight text-white drop-shadow-sm sm:text-3xl">{title}</h3>
         <div className="flex items-center gap-3 text-xs text-white/70">
-          <span>{fmtDate(trip.createdAt)}</span>
-          <span className="flex items-center gap-1">
+          <span className="font-mono tabular-nums">{fmtDate(trip.createdAt)}</span>
+          <span className="flex items-center gap-1 font-mono tabular-nums">
             <Route size={12} className="text-accent" />
             {trip.distanceKm.toFixed(1)} km
           </span>
