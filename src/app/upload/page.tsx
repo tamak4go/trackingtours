@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   UploadCloud,
@@ -43,6 +43,18 @@ const STEPS = [
   { icon: RouteIcon, title: "3. Tạo hành trình", body: "Bản đồ tương tác sẵn sàng để chia sẻ." },
 ];
 
+// iOS Safari only shows its multi-select Photo Library picker (PHPicker,
+// with the "Options -> Location" toggle) when the input's accept attribute
+// recognizes image types. Android needs the opposite: accept="image/*" makes
+// Chrome open its privacy Photo Picker, which strips GPS EXIF outright, so
+// there we deliberately leave accept unset to fall back to the Files picker
+// that preserves EXIF. Hence the two platforms need different accept values.
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  // iPadOS reports as "MacIntel" in the UA string but exposes touch, unlike a real Mac.
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
 export default function UploadPage() {
   const [stage, setStage] = useState<Stage>("idle");
   const [consent, setConsent] = useState(false);
@@ -54,6 +66,12 @@ export default function UploadPage() {
   const [privateOverride, setPrivateOverride] = useState<boolean | null>(null);
   const isPrivate = privateOverride ?? defaultPrivate;
   const setIsPrivate = setPrivateOverride;
+  // Starts undefined (matches SSR markup) and flips after mount to avoid a
+  // hydration mismatch on the `accept` attribute below.
+  const [imageAccept, setImageAccept] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (isIOS()) setImageAccept("image/*");
+  }, []);
   const [dragOver, setDragOver] = useState(false);
   // Files picked via the dropzone / "Chọn ảnh" click / "Cả thư mục" sit here
   // for review (mirrors the mockup's dropzone-then-"Bắt đầu xử lý" flow)
@@ -355,13 +373,18 @@ export default function UploadPage() {
                     ref={imagesInputRef}
                     type="file"
                     multiple
-                    // No `accept` filter on purpose: with accept="image/*" on
+                    // No `accept` filter by default: with accept="image/*" on
                     // Android, Chrome opens the system Photos picker, which
                     // strips GPS from EXIF before handing files over (a
                     // deliberate Android privacy behavior). Without it,
                     // Android falls back to the Files/document picker, which
                     // leaves EXIF (including GPS) untouched. We still filter
                     // to image extensions ourselves in runPipeline.
+                    // iOS is the opposite: Safari only offers its multi-select
+                    // Photo Library picker (with the "Options -> Location"
+                    // toggle) when accept recognizes image types, so there we
+                    // set it explicitly.
+                    accept={imageAccept}
                     className="hidden"
                     onChange={(e) => e.target.files && stageFiles(Array.from(e.target.files))}
                   />
