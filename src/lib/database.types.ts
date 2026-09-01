@@ -82,6 +82,28 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["rate_limits"]["Insert"]>;
         Relationships: [];
       };
+      notifications: {
+        Row: {
+          id: string;
+          owner_user_id: string;
+          trip_slug: string;
+          trip_title: string | null;
+          type: string;
+          read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_user_id: string;
+          trip_slug: string;
+          trip_title?: string | null;
+          type?: string;
+          read?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["notifications"]["Insert"]>;
+        Relationships: [];
+      };
     };
   };
 };

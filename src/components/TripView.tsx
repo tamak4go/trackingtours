@@ -392,6 +392,11 @@ export function TripView({
     setLiked(true); // optimistic -- reverted on failure below
     try {
       await recordLike(trip.slug);
+      // Notifies the signed-in owner (see /api/trips/[slug]/like) --
+      // deliberately not awaited/caught into the try above: this is a
+      // side effect of a successful like, not something whose failure
+      // should revert the like itself or the counter that already updated.
+      fetch(`/api/trips/${trip.slug}/like`, { method: "POST" }).catch(() => {});
     } catch {
       setLiked(false);
     } finally {
@@ -1994,48 +1999,60 @@ export function TripView({
                 style={{ transformOrigin: "top right" }}
                 className="absolute top-full right-3 sm:right-4 mt-2 z-40 glass rounded-2xl p-1.5 flex flex-col gap-0.5 w-64 shadow-xl shadow-black/40"
               >
-                <button
-                  onClick={() => {
-                    setMoreMenuOpen(false);
-                    exportVideo();
-                  }}
-                  disabled={!canPlay || recording || isPlaying}
-                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
-                >
-                  <span className="material-symbols-outlined text-lg shrink-0">
-                    {recording ? "fiber_manual_record" : "videocam"}
-                  </span>
-                  Xuất nhanh (quay màn hình)
-                </button>
-                <button
-                  onClick={() => {
-                    setMoreMenuOpen(false);
-                    exportVideoCanvas();
-                  }}
-                  disabled={!canPlay || recording || isPlaying}
-                  title="Không xin quyền chia sẻ màn hình, không bị giật do máy/tab đang bận việc khác"
-                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
-                >
-                  <span className="material-symbols-outlined text-lg shrink-0">
-                    {recording ? "fiber_manual_record" : "auto_awesome_motion"}
-                  </span>
-                  Xuất mượt (không quay màn hình)
-                </button>
-                {renderServiceAvailable && (
-                  <button
-                    onClick={() => {
-                      setMoreMenuOpen(false);
-                      exportVideoServer();
-                    }}
-                    disabled={!canPlay || serverRendering}
-                    title="Render trên server, không phụ thuộc máy/mạng của bạn -- chậm hơn nhưng luôn ra kết quả giống nhau"
-                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
-                  >
-                    <span className={`material-symbols-outlined text-lg shrink-0 ${serverRendering ? "animate-spin" : ""}`}>
-                      {serverRendering ? "progress_activity" : "cloud_done"}
-                    </span>
-                    {serverRendering ? "Đang xuất trên server..." : "Xuất chuẩn (server)"}
-                  </button>
+                {/* Video export (and TikTok posting below) is the trip's actual
+                    creative output -- letting any visitor to a public trip
+                    generate and post that as their own would let someone
+                    else's ride get reposted under a stranger's account.
+                    Owner-only, unlike the AI-story pill and Google Sheets
+                    export above/below which either stay owner-gated
+                    separately or just copy data into the *viewer's* own
+                    sheet rather than repost the owner's content. */}
+                {canEdit && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        exportVideo();
+                      }}
+                      disabled={!canPlay || recording || isPlaying}
+                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
+                    >
+                      <span className="material-symbols-outlined text-lg shrink-0">
+                        {recording ? "fiber_manual_record" : "videocam"}
+                      </span>
+                      Xuất nhanh (quay màn hình)
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        exportVideoCanvas();
+                      }}
+                      disabled={!canPlay || recording || isPlaying}
+                      title="Không xin quyền chia sẻ màn hình, không bị giật do máy/tab đang bận việc khác"
+                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
+                    >
+                      <span className="material-symbols-outlined text-lg shrink-0">
+                        {recording ? "fiber_manual_record" : "auto_awesome_motion"}
+                      </span>
+                      Xuất mượt (không quay màn hình)
+                    </button>
+                    {renderServiceAvailable && (
+                      <button
+                        onClick={() => {
+                          setMoreMenuOpen(false);
+                          exportVideoServer();
+                        }}
+                        disabled={!canPlay || serverRendering}
+                        title="Render trên server, không phụ thuộc máy/mạng của bạn -- chậm hơn nhưng luôn ra kết quả giống nhau"
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-glass transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left focus-ring"
+                      >
+                        <span className={`material-symbols-outlined text-lg shrink-0 ${serverRendering ? "animate-spin" : ""}`}>
+                          {serverRendering ? "progress_activity" : "cloud_done"}
+                        </span>
+                        {serverRendering ? "Đang xuất trên server..." : "Xuất chuẩn (server)"}
+                      </button>
+                    )}
+                  </>
                 )}
                 {storyAvailable && canEdit && (
                   <button
@@ -2078,7 +2095,8 @@ export function TripView({
                     Mở Google Sheet vừa tạo
                   </a>
                 )}
-                {tiktokAvailable &&
+                {canEdit &&
+                  tiktokAvailable &&
                   (tiktokConnected ? (
                     <>
                       <button

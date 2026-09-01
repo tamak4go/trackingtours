@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Bell,
   Menu,
   X,
   Lock,
@@ -19,6 +18,7 @@ import {
 import { useAuthUser } from "@/lib/use-auth-user";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { AuthButton } from "@/components/AuthButton";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const TOP_LINKS = [
   { key: "home", href: "/", label: "Home" },
@@ -83,13 +83,7 @@ export function DashboardShell({ active, children }: { active: NavKey; children:
           >
             Start Ride
           </Link>
-          <button
-            title="Chưa có thông báo"
-            aria-label="Thông báo (chưa có thông báo mới)"
-            className="hidden sm:block p-2.5 -m-2.5 text-white/50 hover:text-primary active:scale-[0.9] transition-all duration-150 ease-snappy focus-ring"
-          >
-            <Bell size={20} />
-          </button>
+          <NotificationBell />
           <AuthButton />
           <button
             onClick={() => setMobileNavOpen(true)}

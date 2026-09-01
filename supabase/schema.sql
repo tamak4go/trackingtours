@@ -95,3 +95,25 @@ create table if not exists rate_limits (
 alter table rate_limits enable row level security;
 -- No policies added, same reasoning as trips/photos above: only ever touched
 -- server-side via the service role key.
+
+-- One row per event a signed-in trip owner should hear about (currently
+-- just "someone liked your trip" -- see POST /api/trips/[slug]/like). Only
+-- ever relevant to signed-in owners: an anonymous/edit-token-only trip has
+-- no account to check notifications on later, so owner_user_id is required,
+-- not nullable like trips.user_id is.
+create table if not exists notifications (
+  id uuid primary key default gen_random_uuid(),
+  owner_user_id uuid not null references auth.users (id) on delete cascade,
+  trip_slug text not null,
+  trip_title text,
+  type text not null default 'like', -- only 'like' for now; kept as text (not an enum) so new types don't need a migration
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists notifications_owner_user_id_idx on notifications (owner_user_id, created_at desc);
+
+alter table notifications enable row level security;
+-- No policies added, same reasoning as trips/photos above: only ever touched
+-- server-side via the service role key (GET/POST /api/notifications, POST
+-- /api/trips/[slug]/like), which checks the caller's session itself.
