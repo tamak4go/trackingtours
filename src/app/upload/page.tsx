@@ -492,8 +492,9 @@ export default function UploadPage() {
                     </button>
                     <p className="flex items-start gap-1.5 text-xs text-muted leading-relaxed max-w-md">
                       <Info size={13} className="shrink-0 mt-0.5" />
-                      Chỉ ảnh có GPS mới dùng được. Ảnh HEIC (iPhone) đọc được vị trí bình thường; nếu trình duyệt không nén được
-                      ảnh gốc, app sẽ tự tải lên bản gốc thay vì bỏ qua.
+                      Chỉ ảnh có GPS mới dùng được. Trên iPhone, khung chọn ảnh có nút <b>&quot;Options&quot;</b> (góc dưới trái) —
+                      bấm vào và bật <b>&quot;Location&quot;</b> trước khi chọn ảnh, nếu không iOS sẽ tự xóa GPS khỏi ảnh gửi lên.
+                      Nếu trình duyệt không nén được ảnh gốc, app sẽ tự tải lên bản gốc thay vì bỏ qua.
                     </p>
                   </div>
                 </motion.div>
